@@ -4,3 +4,16 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+
+[dev-dependencies]
+slotmap = "1.0.7"
+criterion = { version = "0.7.0" }
+rustc-hash = "2.1.1"
+
+[[bench]]
+name = "slotmap_comparison"
+harness = false
+
+[[bench]]
+name = "hashmap_comparison"
+harness = false
