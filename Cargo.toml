@@ -2,6 +2,23 @@
 name = "deferred-map"
 version = "0.1.0"
 edition = "2024"
+authors = ["ShaoG <shaog.rs@gmail.com>"]
+license = "MIT OR Apache-2.0"
+description = "High-performance generational arena using handle-based deferred insertion with O(1) operations"
+readme = "README.md"
+repository = "https://github.com/ShaoG-R/deferred-map"
+homepage = "https://github.com/ShaoG-R/deferred-map"
+documentation = "https://docs.rs/deferred-map"
+keywords = ["slotmap", "arena", "generational", "handle", "data-structure"]
+categories = ["data-structures", "memory-management"]
+exclude = [
+    "target/*",
+    ".git/*",
+    ".github/*",
+    "benches/*",
+    "*.md",
+    "!README.md",
+]
 
 [dependencies]
 
