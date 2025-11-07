@@ -8,7 +8,8 @@ fn test_basic_removal() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     assert_eq!(map.remove(k), Some(42));
     assert_eq!(map.len(), 0);
@@ -20,7 +21,8 @@ fn test_removal_returns_correct_value() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, "Hello".to_string()).unwrap();
+    let k = h.key();
+    map.insert(h, "Hello".to_string()).unwrap();
     
     let removed = map.remove(k);
     assert_eq!(removed, Some("Hello".to_string()));
@@ -41,7 +43,8 @@ fn test_removal_with_outdated_key() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k1 = map.insert(h, 42).unwrap();
+    let k1 = h.key();
+    map.insert(h, 42).unwrap();
     
     // Remove once
     // 删除一次
@@ -60,7 +63,8 @@ fn test_removal_decrements_len() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -78,7 +82,8 @@ fn test_removal_allows_slot_reuse() {
     let mut map = DeferredMap::new();
     
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, 42).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 42).unwrap();
     let index1 = k1 as u32;
     
     // Remove to free slot
@@ -99,7 +104,8 @@ fn test_removal_increments_generation() {
     
     let h1 = map.allocate_handle();
     let gen1 = h1.generation();
-    let k1 = map.insert(h1, 42).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 42).unwrap();
     
     // Remove to increment generation
     // 删除以递增 generation
@@ -120,7 +126,8 @@ fn test_removal_of_multiple_elements() {
     let mut keys = Vec::new();
     for i in 0..100 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -146,7 +153,8 @@ fn test_removal_and_reinsertion_cycle() {
     
     for cycle in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, cycle).unwrap();
+        let k = h.key();
+        map.insert(h, cycle).unwrap();
         
         assert_eq!(map.get(k), Some(&cycle));
         assert_eq!(map.remove(k), Some(cycle));
@@ -173,7 +181,8 @@ fn test_removal_with_custom_drop() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, DropCounter {
+    let k = h.key();
+    map.insert(h, DropCounter {
         count: drop_count.clone(),
     }).unwrap();
     
@@ -198,7 +207,8 @@ fn test_removal_frees_memory() {
     for _ in 0..100 {
         let large_string = format!("{}", "a".repeat(1000));
         let h = map.allocate_handle();
-        let k = map.insert(h, large_string).unwrap();
+        let k = h.key();
+        map.insert(h, large_string).unwrap();
         keys.push(k);
     }
     
@@ -218,7 +228,8 @@ fn test_removal_maintains_other_elements() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i * 10).unwrap();
+        let k = h.key();
+        map.insert(h, i * 10).unwrap();
         keys.push(k);
     }
     
@@ -244,7 +255,8 @@ fn test_removal_pattern_lifo() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -265,7 +277,8 @@ fn test_removal_pattern_fifo() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -286,7 +299,8 @@ fn test_removal_pattern_random() {
     let mut keys = Vec::new();
     for i in 0..20 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -306,7 +320,8 @@ fn test_removal_after_clear() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     map.clear();
     
@@ -323,15 +338,18 @@ fn test_removal_slot_added_to_free_list() {
     // Insert and remove to create free list
     // 插入并删除以创建空闲列表
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, 1).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 1).unwrap();
     map.remove(k1);
     
     let h2 = map.allocate_handle();
-    let k2 = map.insert(h2, 2).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, 2).unwrap();
     map.remove(k2);
     
     let h3 = map.allocate_handle();
-    let k3 = map.insert(h3, 3).unwrap();
+    let k3 = h3.key();
+    map.insert(h3, 3).unwrap();
     map.remove(k3);
     
     // Allocating new handles should reuse slots in LIFO order
@@ -350,7 +368,8 @@ fn test_removal_with_box_type() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, Box::new(42)).unwrap();
+    let k = h.key();
+    map.insert(h, Box::new(42)).unwrap();
     
     let removed = map.remove(k);
     assert_eq!(removed, Some(Box::new(42)));
@@ -370,7 +389,8 @@ fn test_removal_doesnt_affect_capacity() {
     // Remove some elements
     // 删除一些元素
     let h = map.allocate_handle();
-    let k = map.insert(h, 0).unwrap();
+    let k = h.key();
+    map.insert(h, 0).unwrap();
     map.remove(k);
     
     let capacity_after = map.capacity();
@@ -385,7 +405,8 @@ fn test_double_removal_fails() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     // First removal succeeds
     // 第一次删除成功

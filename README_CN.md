@@ -50,8 +50,11 @@ fn main() {
     // 步骤 1：分配一个句柄（预留槽位）
     let handle = map.allocate_handle();
     
-    // 步骤 2：使用句柄插入值
-    let key = map.insert(handle, "你好，世界！").unwrap();
+    // 步骤 2：在插入前获取键
+    let key = handle.key();
+    
+    // 步骤 3：使用句柄插入值
+    map.insert(handle, "你好，世界！").unwrap();
     
     // 访问值
     assert_eq!(map.get(key), Some(&"你好，世界！"));
@@ -72,7 +75,8 @@ let mut map = DeferredMap::new();
 
 // 分配并插入
 let handle = map.allocate_handle();
-let key = map.insert(handle, 42).unwrap();
+let key = handle.key();
+map.insert(handle, 42).unwrap();
 
 // 获取不可变引用
 assert_eq!(map.get(key), Some(&42));
@@ -108,8 +112,8 @@ let handle1 = graph.allocate_handle();
 let handle2 = graph.allocate_handle();
 
 // 在插入前获取键
-let key1 = handle1.raw_value();
-let key2 = handle2.raw_value();
+let key1 = handle1.key();
+let key2 = handle2.key();
 
 // 现在我们可以创建相互引用的节点
 let node1 = Node { value: 1, next: Some(key2) };
@@ -180,8 +184,16 @@ DeferredMap::with_capacity(capacity: usize) -> Self
 
 ```rust
 allocate_handle(&mut self) -> Handle
-insert(&mut self, handle: Handle, value: T) -> Result<u64, DeferredMapError>
+insert(&mut self, handle: Handle, value: T) -> Result<(), DeferredMapError>
 release_handle(&mut self, handle: Handle) -> Result<(), DeferredMapError>
+```
+
+#### Handle 方法
+
+```rust
+handle.key() -> u64           // 获取键（在插入前）
+handle.index() -> u32         // 获取索引部分
+handle.generation() -> u32    // 获取代数部分
 ```
 
 #### 值访问

@@ -50,8 +50,11 @@ fn main() {
     // Step 1: Allocate a handle (reserves a slot)
     let handle = map.allocate_handle();
     
-    // Step 2: Insert value using the handle
-    let key = map.insert(handle, "Hello, World!").unwrap();
+    // Step 2: Get the key before inserting
+    let key = handle.key();
+    
+    // Step 3: Insert value using the handle
+    map.insert(handle, "Hello, World!").unwrap();
     
     // Access the value
     assert_eq!(map.get(key), Some(&"Hello, World!"));
@@ -72,7 +75,8 @@ let mut map = DeferredMap::new();
 
 // Allocate and insert
 let handle = map.allocate_handle();
-let key = map.insert(handle, 42).unwrap();
+let key = handle.key();
+map.insert(handle, 42).unwrap();
 
 // Get immutable reference
 assert_eq!(map.get(key), Some(&42));
@@ -108,8 +112,8 @@ let handle1 = graph.allocate_handle();
 let handle2 = graph.allocate_handle();
 
 // Get the keys before inserting
-let key1 = handle1.raw_value();
-let key2 = handle2.raw_value();
+let key1 = handle1.key();
+let key2 = handle2.key();
 
 // Now we can create nodes that reference each other
 let node1 = Node { value: 1, next: Some(key2) };
@@ -180,8 +184,16 @@ DeferredMap::with_capacity(capacity: usize) -> Self
 
 ```rust
 allocate_handle(&mut self) -> Handle
-insert(&mut self, handle: Handle, value: T) -> Result<u64, DeferredMapError>
+insert(&mut self, handle: Handle, value: T) -> Result<(), DeferredMapError>
 release_handle(&mut self, handle: Handle) -> Result<(), DeferredMapError>
+```
+
+#### Handle Methods
+
+```rust
+handle.key() -> u64           // Get the key (before insertion)
+handle.index() -> u32         // Get the index part
+handle.generation() -> u32    // Get the generation part
 ```
 
 #### Value Access

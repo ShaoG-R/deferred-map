@@ -7,7 +7,8 @@ use crate::{DeferredMap, DeferredMapError};
 fn test_basic_insertion() {
     let mut map = DeferredMap::new();
     let handle = map.allocate_handle();
-    let key = map.insert(handle, 42).unwrap();
+    let key = handle.key();
+    map.insert(handle, 42).unwrap();
     
     assert_eq!(map.get(key), Some(&42));
     assert_eq!(map.len(), 1);
@@ -20,7 +21,8 @@ fn test_multiple_sequential_insertions() {
     let mut keys = Vec::new();
     for i in 0..100 {
         let handle = map.allocate_handle();
-        let key = map.insert(handle, i).unwrap();
+        let key = handle.key();
+        map.insert(handle, i).unwrap();
         keys.push(key);
     }
     
@@ -37,21 +39,24 @@ fn test_insertion_with_different_types() {
     // 测试 String 类型
     let mut map_string = DeferredMap::new();
     let h = map_string.allocate_handle();
-    let k = map_string.insert(h, "Hello".to_string()).unwrap();
+    let k = h.key();
+    map_string.insert(h, "Hello".to_string()).unwrap();
     assert_eq!(map_string.get(k), Some(&"Hello".to_string()));
     
     // Test with Vec
     // 测试 Vec 类型
     let mut map_vec = DeferredMap::new();
     let h = map_vec.allocate_handle();
-    let k = map_vec.insert(h, vec![1, 2, 3]).unwrap();
+    let k = h.key();
+    map_vec.insert(h, vec![1, 2, 3]).unwrap();
     assert_eq!(map_vec.get(k), Some(&vec![1, 2, 3]));
     
     // Test with Option
     // 测试 Option 类型
     let mut map_option = DeferredMap::new();
     let h = map_option.allocate_handle();
-    let k = map_option.insert(h, Some(42)).unwrap();
+    let k = h.key();
+    map_option.insert(h, Some(42)).unwrap();
     assert_eq!(map_option.get(k), Some(&Some(42)));
 }
 
@@ -61,7 +66,8 @@ fn test_insertion_with_zero_sized_type() {
     // 测试单元类型 ()
     let mut map = DeferredMap::new();
     let handle = map.allocate_handle();
-    let key = map.insert(handle, ()).unwrap();
+    let key = handle.key();
+    map.insert(handle, ()).unwrap();
     
     assert_eq!(map.get(key), Some(&()));
     assert_eq!(map.len(), 1);
@@ -71,26 +77,27 @@ fn test_insertion_with_zero_sized_type() {
 fn test_insertion_returns_correct_key() {
     let mut map = DeferredMap::new();
     let handle = map.allocate_handle();
-    let handle_raw = handle.raw_value();
+    let handle_key = handle.key();
     let handle_index = handle.index();
     
-    let key = map.insert(handle, 42).unwrap();
+    map.insert(handle, 42).unwrap();
     
     // The key should have the same index as the handle
     // key 应该与 handle 有相同的 index
-    let key_index = key as u32;
+    let key_index = handle_key as u32;
     assert_eq!(key_index, handle_index);
     
-    // The key should equal handle.raw_value() since both store generation
-    // key 应该等于 handle.raw_value()，因为两者都存储 generation
-    assert_eq!(key, handle_raw);
+    // Verify the value is accessible with the key
+    // 验证可以使用 key 访问值
+    assert_eq!(map.get(handle_key), Some(&42));
 }
 
 #[test]
 fn test_insertion_with_duplicate_handle_fails() {
     let mut map = DeferredMap::new();
     let handle = map.allocate_handle();
-    let key = map.insert(handle, 42).unwrap();
+    let key = handle.key();
+    map.insert(handle, 42).unwrap();
     
     // Try to use the same key as a handle again
     // 尝试将相同的 key 再次作为 handle 使用
@@ -107,17 +114,17 @@ fn test_insertion_with_outdated_generation_fails() {
     let mut map = DeferredMap::new();
     
     let handle = map.allocate_handle();
-    let old_raw = handle.raw_value();
-    let key = map.insert(handle, 42).unwrap();
+    let old_key = handle.key();
+    map.insert(handle, 42).unwrap();
     
     // Remove the value to increment generation
     // 移除值以递增 generation
-    map.remove(key);
+    map.remove(old_key);
     
     // Try to insert with outdated handle
     // 尝试使用过时的 handle 插入
     use crate::Handle;
-    let outdated_handle = Handle::new(old_raw);
+    let outdated_handle = Handle::new(old_key);
     let result = map.insert(outdated_handle, 100);
     
     assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
@@ -153,7 +160,8 @@ fn test_insertion_after_removal_reuses_slot() {
     let mut map = DeferredMap::new();
     
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, 42).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 42).unwrap();
     let index1 = k1 as u32;
     
     // Remove to free the slot
@@ -163,7 +171,8 @@ fn test_insertion_after_removal_reuses_slot() {
     // Insert again
     // 再次插入
     let h2 = map.allocate_handle();
-    let k2 = map.insert(h2, 100).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, 100).unwrap();
     let index2 = k2 as u32;
     
     // Should reuse the same index
@@ -196,7 +205,8 @@ fn test_insertion_preserves_previous_values() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i * 10).unwrap();
+        let k = h.key();
+        map.insert(h, i * 10).unwrap();
         keys.push(k);
     }
     
@@ -215,7 +225,8 @@ fn test_insertion_with_large_values() {
     // 插入大字符串
     let large_string = "a".repeat(10000);
     let h = map.allocate_handle();
-    let k = map.insert(h, large_string.clone()).unwrap();
+    let k = h.key();
+    map.insert(h, large_string.clone()).unwrap();
     
     assert_eq!(map.get(k), Some(&large_string));
 }
@@ -257,7 +268,8 @@ fn test_insertion_with_custom_struct() {
     };
     
     let h = map.allocate_handle();
-    let k = map.insert(h, custom).unwrap();
+    let k = h.key();
+    map.insert(h, custom).unwrap();
     
     if let Some(value) = map.get(k) {
         assert_eq!(value.id, 1);
@@ -275,14 +287,17 @@ fn test_insertion_interleaved_with_allocations() {
     // Allocate multiple handles first
     // 先分配多个 handle
     let h1 = map.allocate_handle();
+    let k1 = h1.key();
     let h2 = map.allocate_handle();
+    let k2 = h2.key();
     let h3 = map.allocate_handle();
+    let k3 = h3.key();
     
     // Then insert in different order
     // 然后以不同的顺序插入
-    let k2 = map.insert(h2, 2).unwrap();
-    let k1 = map.insert(h1, 1).unwrap();
-    let k3 = map.insert(h3, 3).unwrap();
+    map.insert(h2, 2).unwrap();
+    map.insert(h1, 1).unwrap();
+    map.insert(h3, 3).unwrap();
     
     assert_eq!(map.get(k1), Some(&1));
     assert_eq!(map.get(k2), Some(&2));
@@ -295,7 +310,8 @@ fn test_insertion_with_box() {
     
     let boxed_value = Box::new(42);
     let h = map.allocate_handle();
-    let k = map.insert(h, boxed_value).unwrap();
+    let k = h.key();
+    map.insert(h, boxed_value).unwrap();
     
     assert_eq!(map.get(k), Some(&Box::new(42)));
 }
@@ -317,7 +333,8 @@ fn test_insertion_error_messages() {
     // Test HandleAlreadyUsed error
     // 测试 HandleAlreadyUsed 错误
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     let duplicate = Handle::new(k);
     let result = map.insert(duplicate, 100);
     match result {

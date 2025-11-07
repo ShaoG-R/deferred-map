@@ -21,7 +21,8 @@ fn test_get_with_invalid_key() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     // Try to get with different key
     // 尝试使用不同的 key 获取
@@ -35,7 +36,8 @@ fn test_get_mut_with_invalid_key() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     // Try to get_mut with invalid keys
     // 尝试使用无效的 key 进行 get_mut
@@ -48,7 +50,8 @@ fn test_contains_key_with_invalid_key() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     assert!(map.contains_key(k));
     assert!(!map.contains_key(k + 1));
@@ -64,7 +67,8 @@ fn test_operations_after_clear() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -149,7 +153,8 @@ fn test_iter_skips_removed_elements() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -170,7 +175,8 @@ fn test_iter_mut_skips_removed_elements() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -196,10 +202,12 @@ fn test_clone_with_values() {
     let mut map = DeferredMap::new();
     
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, 42).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 42).unwrap();
     
     let h2 = map.allocate_handle();
-    let k2 = map.insert(h2, 100).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, 100).unwrap();
     
     let cloned = map.clone();
     
@@ -213,7 +221,8 @@ fn test_clone_independence() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     let mut cloned = map.clone();
     
@@ -233,7 +242,8 @@ fn test_clone_independence() {
 fn test_clone_from() {
     let mut map1 = DeferredMap::new();
     let h1 = map1.allocate_handle();
-    let k1 = map1.insert(h1, 1).unwrap();
+    let k1 = h1.key();
+    map1.insert(h1, 1).unwrap();
     
     let mut map2 = DeferredMap::new();
     let h2 = map2.allocate_handle();
@@ -277,13 +287,16 @@ fn test_operations_on_map_with_gaps() {
     // Create map with gaps (insert, remove, insert pattern)
     // 创建有间隙的 map（插入、删除、插入模式）
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, 1).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 1).unwrap();
     
     let h2 = map.allocate_handle();
-    let k2 = map.insert(h2, 2).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, 2).unwrap();
     
     let h3 = map.allocate_handle();
-    let k3 = map.insert(h3, 3).unwrap();
+    let k3 = h3.key();
+    map.insert(h3, 3).unwrap();
     
     // Remove middle element
     // 删除中间元素
@@ -292,7 +305,8 @@ fn test_operations_on_map_with_gaps() {
     // Insert new element (should reuse k2's slot)
     // 插入新元素（应该复用 k2 的 slot）
     let h4 = map.allocate_handle();
-    let k4 = map.insert(h4, 4).unwrap();
+    let k4 = h4.key();
+    map.insert(h4, 4).unwrap();
     
     // Verify all operations work correctly
     // 验证所有操作正常工作
@@ -309,7 +323,8 @@ fn test_get_after_modification() {
     let mut map = DeferredMap::new();
     
     let h = map.allocate_handle();
-    let k = map.insert(h, 42).unwrap();
+    let k = h.key();
+    map.insert(h, 42).unwrap();
     
     // Modify through get_mut
     // 通过 get_mut 修改
@@ -329,7 +344,8 @@ fn test_remove_during_iteration() {
     let mut keys = Vec::new();
     for i in 0..10 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -412,7 +428,8 @@ fn test_interleaved_operations() {
     let h1 = map.allocate_handle();
     
     // Insert
-    let k1 = map.insert(h1, 1).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 1).unwrap();
     
     // Allocate more
     let h2 = map.allocate_handle();
@@ -421,7 +438,8 @@ fn test_interleaved_operations() {
     assert_eq!(map.get(k1), Some(&1));
     
     // Insert
-    let k2 = map.insert(h2, 2).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, 2).unwrap();
     
     // Remove
     map.remove(k1);
@@ -430,7 +448,8 @@ fn test_interleaved_operations() {
     let h3 = map.allocate_handle();
     
     // Insert
-    let k3 = map.insert(h3, 3).unwrap();
+    let k3 = h3.key();
+    map.insert(h3, 3).unwrap();
     
     // Verify state
     assert_eq!(map.get(k2), Some(&2));
@@ -462,10 +481,12 @@ fn test_map_with_option_type() {
     let mut map = DeferredMap::new();
     
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, Some(42)).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, Some(42)).unwrap();
     
     let h2 = map.allocate_handle();
-    let k2 = map.insert(h2, None::<i32>).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, None::<i32>).unwrap();
     
     assert_eq!(map.get(k1), Some(&Some(42)));
     assert_eq!(map.get(k2), Some(&None));
@@ -476,10 +497,12 @@ fn test_map_with_result_type() {
     let mut map = DeferredMap::new();
     
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, Ok::<i32, String>(42)).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, Ok::<i32, String>(42)).unwrap();
     
     let h2 = map.allocate_handle();
-    let k2 = map.insert(h2, Err::<i32, String>("error".to_string())).unwrap();
+    let k2 = h2.key();
+    map.insert(h2, Err::<i32, String>("error".to_string())).unwrap();
     
     assert_eq!(map.get(k1), Some(&Ok(42)));
     assert_eq!(map.get(k2), Some(&Err("error".to_string())));

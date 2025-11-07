@@ -4,12 +4,12 @@
 use crate::{DeferredMap, Handle, DeferredMapError};
 
 #[test]
-fn test_handle_raw_value() {
+fn test_handle_key() {
     let mut map = DeferredMap::<i32>::new();
     let handle = map.allocate_handle();
     
-    let raw = handle.raw_value();
-    assert!(raw > 0);
+    let key = handle.key();
+    assert!(key > 0);
 }
 
 #[test]
@@ -39,17 +39,17 @@ fn test_handle_encoding_consistency() {
     let mut map = DeferredMap::<i32>::new();
     let handle = map.allocate_handle();
     
-    let raw = handle.raw_value();
+    let key = handle.key();
     let index = handle.index();
     let generation = handle.generation();
     
     // Verify index extraction
     // 验证 index 提取
-    assert_eq!(raw & 0xFFFFFFFF, index as u64);
+    assert_eq!(key & 0xFFFFFFFF, index as u64);
     
     // Verify generation extraction (upper 30 bits of upper 32 bits)
     // 验证 generation 提取（高 32 位中的高 30 位）
-    assert_eq!((raw >> 34), generation as u64);
+    assert_eq!((key >> 34), generation as u64);
 }
 
 #[test]
@@ -84,7 +84,8 @@ fn test_handle_generation_after_reuse() {
     // 分配并插入
     let handle1 = map.allocate_handle();
     let gen1 = handle1.generation();
-    let key1 = map.insert(handle1, 42).unwrap();
+    let key1 = handle1.key();
+    map.insert(handle1, 42).unwrap();
     
     // Remove to free the slot
     // 移除以释放 slot
@@ -112,7 +113,7 @@ fn test_handle_cannot_be_cloned() {
     
     // This should consume the handle
     // 这应该消耗 handle
-    let _key = map.insert(handle, 42);
+    map.insert(handle, 42).unwrap();
     
     // Uncommenting the following line should cause a compile error:
     // 取消注释以下行应该导致编译错误：
@@ -129,10 +130,10 @@ fn test_handle_equality() {
     // Handle 不应该相等
     assert_ne!(handle1, handle2);
     
-    // Create handle with same raw value
-    // 使用相同的 raw 值创建 handle
-    let raw = handle1.raw_value();
-    let handle3 = Handle::new(raw);
+    // Create handle with same key value
+    // 使用相同的 key 值创建 handle
+    let key = handle1.key();
+    let handle3 = Handle::new(key);
     assert_eq!(handle1, handle3);
 }
 
@@ -171,7 +172,8 @@ fn test_handle_generation_consistency_after_multiple_reuses() {
     let handle1 = map.allocate_handle();
     let index = handle1.index();
     let mut prev_gen = handle1.generation();
-    let mut current_key = map.insert(handle1, 1).unwrap();
+    let mut current_key = handle1.key();
+    map.insert(handle1, 1).unwrap();
     
     // Reuse the same slot multiple times
     // 多次复用相同的 slot
@@ -185,7 +187,8 @@ fn test_handle_generation_consistency_after_multiple_reuses() {
         assert_eq!(curr_gen, prev_gen + 1); // Generation (high 30 bits) should increment by 1 | Generation（高 30 位）应该递增 1
         prev_gen = curr_gen;
         
-        current_key = map.insert(handle, i).unwrap();
+        current_key = handle.key();
+        map.insert(handle, i).unwrap();
     }
 }
 
@@ -207,8 +210,8 @@ fn test_handle_with_max_index() {
     // 测试最大 u32 索引的 handle
     let max_index = u32::MAX;
     let generation = 1u32;
-    let raw = (generation as u64) << 32 | max_index as u64;
-    let handle = Handle::new(raw);
+    let key = (generation as u64) << 32 | max_index as u64;
+    let handle = Handle::new(key);
     
     assert_eq!(handle.index(), max_index);
     assert_eq!(handle.generation(), generation); // generation is stored directly in high 32 bits
@@ -220,8 +223,8 @@ fn test_handle_with_max_generation() {
     // 测试最大 32 位 generation 的 handle
     let index = 1u32;
     let max_generation = u32::MAX; // Now generation is full 32 bits
-    let raw = (max_generation as u64) << 32 | index as u64;
-    let handle = Handle::new(raw);
+    let key = (max_generation as u64) << 32 | index as u64;
+    let handle = Handle::new(key);
     
     assert_eq!(handle.index(), index);
     assert_eq!(handle.generation(), max_generation);
@@ -295,7 +298,8 @@ fn test_release_handle_already_used_fails() {
     // Allocate and insert (use the handle)
     // 分配并插入（使用 handle）
     let handle = map.allocate_handle();
-    let key = map.insert(handle, 42).unwrap();
+    let key = handle.key();
+    map.insert(handle, 42).unwrap();
     
     // Try to release using the key (which is now occupied)
     // 尝试使用 key 释放（现在已被占用）
@@ -342,8 +346,9 @@ fn test_release_handle_generation_mismatch() {
     // Allocate, insert, and remove to increment generation
     // 分配、插入和删除以递增 generation
     let handle1 = map.allocate_handle();
-    let old_raw = handle1.raw_value();
-    let key1 = map.insert(handle1, 42).unwrap();
+    let old_key = handle1.key();
+    let key1 = handle1.key();
+    map.insert(handle1, 42).unwrap();
     map.remove(key1);
     
     // Allocate again (same slot, new generation)
@@ -353,7 +358,7 @@ fn test_release_handle_generation_mismatch() {
     
     // Try to release with outdated handle
     // 尝试使用过时的 handle 释放
-    let outdated_handle = Handle::new(old_raw);
+    let outdated_handle = Handle::new(old_key);
     let result = map.release_handle(outdated_handle);
     
     assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
@@ -410,15 +415,17 @@ fn test_release_handle_interleaved_with_insertions() {
     // Allocate multiple handles
     // 分配多个 handle
     let h1 = map.allocate_handle();
+    let k1 = h1.key();
     let h2 = map.allocate_handle();
     let h3 = map.allocate_handle();
+    let k3 = h3.key();
     let h4 = map.allocate_handle();
     
     // Insert some, release others
     // 插入一些，释放其他
-    let k1 = map.insert(h1, 1).unwrap();
+    map.insert(h1, 1).unwrap();
     map.release_handle(h2).unwrap(); // Release unused | 释放未使用的
-    let k3 = map.insert(h3, 3).unwrap();
+    map.insert(h3, 3).unwrap();
     map.release_handle(h4).unwrap(); // Release unused | 释放未使用的
     
     // Verify only inserted values are accessible
@@ -442,7 +449,8 @@ fn test_release_handle_then_insert_at_same_slot() {
     // 再次分配并插入
     let handle2 = map.allocate_handle();
     let index2 = handle2.index();
-    let key2 = map.insert(handle2, 42).unwrap();
+    let key2 = handle2.key();
+    map.insert(handle2, 42).unwrap();
     
     // Should use the same index
     // 应该使用相同的索引
@@ -490,12 +498,12 @@ fn test_release_handle_double_release_fails() {
     // Allocate and release
     // 分配并释放
     let handle = map.allocate_handle();
-    let raw = handle.raw_value();
+    let key = handle.key();
     map.release_handle(handle).unwrap();
     
-    // Try to release again with the same raw value
-    // 尝试使用相同的 raw 值再次释放
-    let duplicate_handle = Handle::new(raw);
+    // Try to release again with the same key value
+    // 尝试使用相同的 key 值再次释放
+    let duplicate_handle = Handle::new(key);
     let result = map.release_handle(duplicate_handle);
     
     // Should fail with generation mismatch
@@ -510,7 +518,8 @@ fn test_release_handle_after_remove() {
     // Allocate, insert, and remove
     // 分配、插入和删除
     let handle = map.allocate_handle();
-    let key = map.insert(handle, 42).unwrap();
+    let key = handle.key();
+    map.insert(handle, 42).unwrap();
     map.remove(key);
     
     // Try to release using the removed key
@@ -557,7 +566,8 @@ fn test_release_handle_mixed_with_removal() {
     // Allocate and insert
     // 分配并插入
     let h1 = map.allocate_handle();
-    let k1 = map.insert(h1, 1).unwrap();
+    let k1 = h1.key();
+    map.insert(h1, 1).unwrap();
     
     // Allocate and release
     // 分配并释放
@@ -571,12 +581,14 @@ fn test_release_handle_mixed_with_removal() {
     // Allocate two new handles
     // 分配两个新 handle
     let h3 = map.allocate_handle();
+    let k3 = h3.key();
     let h4 = map.allocate_handle();
+    let k4 = h4.key();
     
     // Both should reuse slots
     // 两者都应该复用 slot
-    let k3 = map.insert(h3, 3).unwrap();
-    let k4 = map.insert(h4, 4).unwrap();
+    map.insert(h3, 3).unwrap();
+    map.insert(h4, 4).unwrap();
     
     assert_eq!(map.get(k3), Some(&3));
     assert_eq!(map.get(k4), Some(&4));

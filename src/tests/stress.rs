@@ -12,7 +12,8 @@ fn test_large_scale_insertions() {
     
     for i in 0..count {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -36,7 +37,8 @@ fn test_large_scale_removals() {
     // 插入
     for i in 0..count {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -64,7 +66,8 @@ fn test_interleaved_operations_stress() {
         // 插入批次
         for i in 0..batch_size {
             let h = map.allocate_handle();
-            let k = map.insert(h, i).unwrap();
+            let k = h.key();
+            map.insert(h, i).unwrap();
             keys.push(k);
         }
         
@@ -88,7 +91,8 @@ fn test_slot_reuse_stress() {
     
     for i in 0..iterations {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         
         // Immediately remove to stress free list
         // 立即删除以测试空闲列表
@@ -112,7 +116,8 @@ fn test_fragmentation_handling() {
     // 填充 map
     for i in 0..count {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -128,7 +133,8 @@ fn test_fragmentation_handling() {
     // 用新值填充间隙
     for i in 0..count/2 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i + count).unwrap();
+        let k = h.key();
+        map.insert(h, i + count).unwrap();
         // Update to new key
         keys[i * 2] = k;
     }
@@ -148,7 +154,8 @@ fn test_alternating_operations() {
             // Insert
             // 插入
             let h = map.allocate_handle();
-            let k = map.insert(h, i).unwrap();
+            let k = h.key();
+            map.insert(h, i).unwrap();
             keys.push(k);
         } else if !keys.is_empty() {
             // Remove
@@ -170,7 +177,8 @@ fn test_generation_increment_stress() {
     let cycles = 100;
     let h1 = map.allocate_handle();
     let index = h1.index();
-    let k = map.insert(h1, 0).unwrap();
+    let mut k = h1.key();
+    map.insert(h1, 0).unwrap();
     
     // Repeatedly remove and reinsert at same slot
     // 重复地在同一个 slot 删除和重新插入
@@ -180,12 +188,15 @@ fn test_generation_increment_stress() {
         let h = map.allocate_handle();
         assert_eq!(h.index(), index); // Should reuse same slot | 应该复用相同的 slot
         
-        let new_k = map.insert(h, i).unwrap();
+        let new_k = h.key();
+        map.insert(h, i).unwrap();
         
         // Old key should be invalid
         // 旧 key 应该无效
         assert_eq!(map.get(k), None);
         assert_eq!(map.get(new_k), Some(&i));
+        
+        k = new_k;
     }
 }
 
@@ -342,7 +353,8 @@ fn test_get_mut_stress() {
     
     for i in 0..count {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -370,7 +382,8 @@ fn test_contains_key_stress() {
     
     for i in 0..count {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -430,7 +443,8 @@ fn test_sparse_allocation_pattern() {
     let mut keys = Vec::new();
     for i in 0..100 {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -461,7 +475,8 @@ fn test_sequential_vs_random_access() {
     
     for i in 0..count {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     
@@ -493,7 +508,8 @@ fn test_all_operations_combined_stress() {
                 // Insert
                 // 插入
                 let h = map.allocate_handle();
-                let k = map.insert(h, counter).unwrap();
+                let k = h.key();
+                map.insert(h, counter).unwrap();
                 keys.push(k);
                 counter += 1;
             },
@@ -551,7 +567,8 @@ fn test_memory_efficiency() {
     
     for i in 0..initial_insertions {
         let h = map.allocate_handle();
-        let k = map.insert(h, i).unwrap();
+        let k = h.key();
+        map.insert(h, i).unwrap();
         keys.push(k);
     }
     

@@ -75,7 +75,8 @@ fn bench_get(c: &mut Criterion) {
         let mut keys = Vec::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
-            let key = deferred_map.insert(handle, i).unwrap();
+            let key = handle.key();
+            deferred_map.insert(handle, i).unwrap();
             keys.push(key);
         }
         
@@ -120,7 +121,8 @@ fn bench_random_get(c: &mut Criterion) {
         let mut keys = Vec::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
-            let key = deferred_map.insert(handle, i).unwrap();
+            let key = handle.key();
+            deferred_map.insert(handle, i).unwrap();
             keys.push(key);
         }
         
@@ -162,7 +164,8 @@ fn bench_remove(c: &mut Criterion) {
                     let mut keys = Vec::new();
                     for i in 0..size {
                         let handle = map.allocate_handle();
-                        let key = map.insert(handle, i).unwrap();
+                        let key = handle.key();
+                        map.insert(handle, i).unwrap();
                         keys.push(key);
                     }
                     (map, keys)
@@ -255,7 +258,8 @@ fn bench_mixed_operations(c: &mut Criterion) {
                 // 插入
                 for i in 0..size {
                     let handle = map.allocate_handle();
-                    let key = map.insert(handle, black_box(i)).unwrap();
+                    let key = handle.key();
+                    map.insert(handle, black_box(i)).unwrap();
                     keys.push(key);
                 }
                 
@@ -324,7 +328,8 @@ fn bench_churn(c: &mut Criterion) {
                 let mut keys = Vec::new();
                 for i in 0..size / 2 {
                     let handle = map.allocate_handle();
-                    let key = map.insert(handle, black_box(i)).unwrap();
+                    let key = handle.key();
+                    map.insert(handle, black_box(i)).unwrap();
                     keys.push(key);
                 }
                 
@@ -337,7 +342,8 @@ fn bench_churn(c: &mut Criterion) {
                     
                     // 插入一个
                     let handle = map.allocate_handle();
-                    let key = map.insert(handle, black_box(i)).unwrap();
+                    let key = handle.key();
+                    map.insert(handle, black_box(i)).unwrap();
                     if i < keys.len() {
                         keys[i] = key;
                     }
@@ -498,7 +504,8 @@ fn bench_sparse(c: &mut Criterion) {
                 // 插入所有元素
                 for i in 0..size {
                     let handle = map.allocate_handle();
-                    let key = map.insert(handle, black_box(i)).unwrap();
+                    let key = handle.key();
+                    map.insert(handle, black_box(i)).unwrap();
                     keys.push(key);
                 }
                 
@@ -559,7 +566,8 @@ fn bench_sequential_access(c: &mut Criterion) {
         let mut keys = Vec::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
-            let key = deferred_map.insert(handle, i).unwrap();
+            let key = handle.key();
+            deferred_map.insert(handle, i).unwrap();
             keys.push(key);
         }
         
