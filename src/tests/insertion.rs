@@ -81,11 +81,9 @@ fn test_insertion_returns_correct_key() {
     let key_index = key as u32;
     assert_eq!(key_index, handle_index);
     
-    // The version in the key should be occupied (handle version + 2)
-    // key 中的 version 应该是 occupied（handle version + 2）
-    let handle_version = (handle_raw >> 32) as u32;
-    let key_version = (key >> 32) as u32;
-    assert_eq!(key_version, handle_version + 2); // reserved(0bXX01) + 2 = occupied(0bXX11)
+    // The key should equal handle.raw_value() since both store generation
+    // key 应该等于 handle.raw_value()，因为两者都存储 generation
+    assert_eq!(key, handle_raw);
 }
 
 #[test]

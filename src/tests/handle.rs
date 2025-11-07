@@ -206,22 +206,21 @@ fn test_handle_with_max_index() {
     // Test handle with maximum u32 index
     // 测试最大 u32 索引的 handle
     let max_index = u32::MAX;
-    let version = 1u32;
-    let raw = (version as u64) << 32 | max_index as u64;
+    let generation = 1u32;
+    let raw = (generation as u64) << 32 | max_index as u64;
     let handle = Handle::new(raw);
     
     assert_eq!(handle.index(), max_index);
-    assert_eq!(handle.generation(), version >> 2); // generation is high 30 bits
+    assert_eq!(handle.generation(), generation); // generation is stored directly in high 32 bits
 }
 
 #[test]
 fn test_handle_with_max_generation() {
-    // Test handle with maximum 30-bit generation
-    // 测试最大 30 位 generation 的 handle
+    // Test handle with maximum 32-bit generation
+    // 测试最大 32 位 generation 的 handle
     let index = 1u32;
-    let max_generation = (1u32 << 30) - 1; // 2^30 - 1, maximum 30-bit value
-    let version = (max_generation << 2) | 0b01; // Encode generation in high 30 bits, reserved state in low 2 bits
-    let raw = (version as u64) << 32 | index as u64;
+    let max_generation = u32::MAX; // Now generation is full 32 bits
+    let raw = (max_generation as u64) << 32 | index as u64;
     let handle = Handle::new(raw);
     
     assert_eq!(handle.index(), index);

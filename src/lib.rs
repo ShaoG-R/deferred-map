@@ -65,21 +65,12 @@ impl Handle {
     pub fn index(&self) -> u32 {
         self.raw as u32
     }
-
-    /// Extract version (upper 32 bits, includes state bits)
+    /// Extract generation (upper 32 bits)
     /// 
-    /// 提取 version（高 32 位，包含状态位）
-    #[inline(always)]
-    fn version(&self) -> u32 {
-        (self.raw >> 32) as u32
-    }
-
-    /// Extract generation (upper 30 bits, excludes state bits)
-    /// 
-    /// 提取 generation（高 30 位，不包含状态位）
+    /// 提取 generation（高 32 位）
     #[inline(always)]
     pub fn generation(&self) -> u32 {
-        self.version() >> 2
+        (self.raw >> 32) as u32
     }
 }
 
@@ -97,14 +88,16 @@ union SlotUnion<T> {
 
 /// Slot stores the actual value and version information
 /// 
-/// Even version indicates vacant, odd version indicates occupied.
+/// Version uses lowest 2 bits for state (0b00=vacant, 0b01=reserved, 0b11=occupied)
+/// and upper 30 bits for generation counter.
 /// 
 /// Slot 存储实际的值和 version 信息
 /// 
-/// version 为偶数表示空闲，奇数表示占用
+/// version 的最低 2 位表示状态（0b00=空闲, 0b01=预留, 0b11=占用）
+/// 高 30 位为代数计数器
 struct Slot<T> {
     u: SlotUnion<T>,
-    version: u32, // Even = vacant, odd = occupied | 偶数 = 空闲, 奇数 = 占用
+    version: u32, // Low 2 bits: state, High 30 bits: generation | 低2位：状态，高30位：代数
 }
 
 /// Safe API to read slot content
@@ -174,11 +167,10 @@ impl<T> Slot<T> {
         self.state_bits() == 0b11
     }
 
-    /// Get the generation (upper 30 bits)
+    /// Get the generation from version (excludes state bits)
     /// 
-    /// 获取代数（高 30 位）
+    /// 从 version 中获取 generation（不包含状态位）
     #[inline(always)]
-    #[allow(unused)]
     fn generation(&self) -> u32 {
         self.version >> 2
     }
@@ -440,7 +432,7 @@ impl<T> DeferredMap<T> {
             // 状态转换：vacant(0bXX00) -> reserved(0bXX01)
             slot.version += 1;
             
-            let raw = Self::encode_key(index, slot.version);
+            let raw = Self::encode_key(index, slot.generation());
             Handle::new(raw)
         } else {
             // Need to extend Vec, allocate new slot
@@ -459,7 +451,9 @@ impl<T> DeferredMap<T> {
             // 更新 free_head
             self.free_head = index + 1;
             
-            let raw = Self::encode_key(index, version);
+            // Extract generation from version (reserved state: 0b01)
+            // 从 version 提取 generation（reserved 状态：0b01）
+            let raw = Self::encode_key(index, version >> 2);
             Handle::new(raw)
         }
     }
@@ -521,11 +515,11 @@ impl<T> DeferredMap<T> {
 
         #[cfg(debug_assertions)]
         {
-            let handle_version = handle.version();
+            let handle_generation = handle.generation();
 
-            // Validate version match (handle should have reserved version)
-            // 验证 version 匹配（handle 应该有 reserved version）
-            if unlikely(slot.version != handle_version) {
+            // Validate generation match (handle stores generation, not version)
+            // 验证 generation 匹配（handle 存储 generation，不是 version）
+            if unlikely(slot.generation() != handle_generation) {
                 return Err(DeferredMapError::GenerationMismatch);
             }
 
@@ -547,9 +541,9 @@ impl<T> DeferredMap<T> {
         
         self.num_elems += 1;
         
-        // Return key with the new occupied version
-        // 返回带有新的 occupied version 的 key
-        Ok(Self::encode_key(index, slot.version))
+        // Return key with the generation (not version)
+        // 返回带有 generation 的 key（不是 version）
+        Ok(Self::encode_key(index, slot.generation()))
     }
 
     /// Get immutable reference to value by u64 key
@@ -593,9 +587,9 @@ impl<T> DeferredMap<T> {
         // SAFETY: We've checked that index < slots.len()
         let slot = unsafe { self.slots.get_unchecked(index as usize) };
         
-        // Fast path: check version match and return value
-        // 快速路径：检查 version 匹配并返回值
-        if likely(slot.version == generation && slot.is_occupied()) {
+        // Fast path: check generation match and return value
+        // 快速路径：检查 generation 匹配并返回值
+        if likely(slot.generation() == generation && slot.is_occupied()) {
             // SAFETY: We've checked that slot is occupied
             Some(unsafe { &*slot.u.value })
         } else {
@@ -648,9 +642,9 @@ impl<T> DeferredMap<T> {
         // SAFETY: We've checked that index < slots.len()
         let slot = unsafe { self.slots.get_unchecked_mut(index as usize) };
         
-        // Fast path: check version match and return mutable reference
-        // 快速路径：检查 version 匹配并返回可变引用
-        if likely(slot.version == generation && slot.is_occupied()) {
+        // Fast path: check generation match and return mutable reference
+        // 快速路径：检查 generation 匹配并返回可变引用
+        if likely(slot.generation() == generation && slot.is_occupied()) {
             // SAFETY: We've checked that slot is occupied
             Some(unsafe { &mut *slot.u.value })
         } else {
@@ -705,9 +699,9 @@ impl<T> DeferredMap<T> {
         // SAFETY: We've checked that index < slots.len()
         let slot = unsafe { self.slots.get_unchecked_mut(index as usize) };
         
-        // Fast path: check version and occupied state
-        // 快速路径：检查 version 和占用状态
-        if likely(slot.version == generation && slot.is_occupied()) {
+        // Fast path: check generation and occupied state
+        // 快速路径：检查 generation 和占用状态
+        if likely(slot.generation() == generation && slot.is_occupied()) {
             // Take value from slot
             // 从 slot 中取出值
             let value = unsafe { ManuallyDrop::take(&mut slot.u.value) };
@@ -766,7 +760,7 @@ impl<T> DeferredMap<T> {
     /// ```
     pub fn release_handle(&mut self, handle: Handle) -> Result<(), DeferredMapError> {
         let index = handle.index();
-        let handle_version = handle.version();
+        let handle_generation = handle.generation();
 
         // Validate index (skip sentinel)
         // 验证 index 有效（跳过 sentinel）
@@ -782,9 +776,9 @@ impl<T> DeferredMap<T> {
 
         let slot = &mut self.slots[index as usize];
 
-        // Validate version match (handle should have reserved version)
-        // 验证 version 匹配（handle 应该有 reserved version）
-        if unlikely(slot.version != handle_version) {
+        // Validate generation match (handle stores generation, not version)
+        // 验证 generation 匹配（handle 存储 generation，不是 version）
+        if unlikely(slot.generation() != handle_generation) {
             return Err(DeferredMapError::GenerationMismatch);
         }
 
@@ -954,7 +948,7 @@ impl<T> DeferredMap<T> {
     pub fn iter(&self) -> impl Iterator<Item = (u64, &T)> {
         self.slots.iter().enumerate().skip(1).filter_map(|(index, slot)| {
             if let Occupied(value) = slot.get() {
-                let key = Self::encode_key(index as u32, slot.version);
+                let key = Self::encode_key(index as u32, slot.generation());
                 Some((key, value))
             } else {
                 None
@@ -989,9 +983,9 @@ impl<T> DeferredMap<T> {
     #[inline]
     pub fn iter_mut(&mut self) -> impl Iterator<Item = (u64, &mut T)> {
         self.slots.iter_mut().enumerate().skip(1).filter_map(|(index, slot)| {
-            let version = slot.version;
+            let generation = slot.generation();
             if let OccupiedMut(value) = slot.get_mut() {
-                let key = Self::encode_key(index as u32, version);
+                let key = Self::encode_key(index as u32, generation);
                 Some((key, value))
             } else {
                 None
@@ -1234,12 +1228,12 @@ mod basic_tests {
         
         let raw = handle.raw_value();
         let index = handle.index();
-        let version = (raw >> 32) as u32; // Full version including state bits
+        let generation = handle.generation();
         
-        // encode_key uses version (32 bits), not generation (30 bits)
-        // encode_key 使用 version（32 位），而不是 generation（30 位）
-        assert_eq!(DeferredMap::<i32>::encode_key(index, version), raw);
-        assert_eq!(DeferredMap::<i32>::decode_key(raw), (index, version));
+        // encode_key uses generation (32 bits), not version (which includes state bits)
+        // encode_key 使用 generation（32 位），而不是 version（包含状态位）
+        assert_eq!(DeferredMap::<i32>::encode_key(index, generation), raw);
+        assert_eq!(DeferredMap::<i32>::decode_key(raw), (index, generation));
     }
 
     #[test]
@@ -1311,5 +1305,28 @@ mod basic_tests {
         assert_eq!(map.get(keys[0]), None);
         // New key is valid | 新 key 有效
         assert_eq!(map.get(new_key), Some(&100));
+    }
+
+    #[test]
+    fn test_handle_raw_value_equals_key() {
+        let mut map = DeferredMap::new();
+        
+        // Test that handle.raw_value() equals the key returned by insert
+        // 测试 handle.raw_value() 等于 insert 返回的 key
+        let handle = map.allocate_handle();
+        let handle_raw = handle.raw_value();
+        let key = map.insert(handle, 42).unwrap();
+        
+        assert_eq!(handle_raw, key);
+        assert_eq!(map.get(key), Some(&42));
+        
+        // Test with multiple insertions
+        // 测试多次插入
+        for i in 0..10 {
+            let handle = map.allocate_handle();
+            let handle_raw = handle.raw_value();
+            let key = map.insert(handle, i).unwrap();
+            assert_eq!(handle_raw, key);
+        }
     }
 }
