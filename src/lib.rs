@@ -45,7 +45,7 @@ impl Handle {
     /// Create a new Handle (internal use)
     /// 
     /// 创建一个新的 Handle（内部使用）
-    #[inline]
+    #[inline(always)]
     fn new(raw: u64) -> Self {
         Self { raw }
     }
@@ -53,7 +53,7 @@ impl Handle {
     /// Get the internal u64 value
     /// 
     /// 获取内部的 u64 值
-    #[inline]
+    #[inline(always)]
     pub fn raw_value(&self) -> u64 {
         self.raw
     }
@@ -61,7 +61,7 @@ impl Handle {
     /// Extract index (lower 32 bits)
     /// 
     /// 提取 index（低 32 位）
-    #[inline]
+    #[inline(always)]
     pub fn index(&self) -> u32 {
         self.raw as u32
     }
@@ -69,7 +69,7 @@ impl Handle {
     /// Extract version (upper 32 bits, includes state bits)
     /// 
     /// 提取 version（高 32 位，包含状态位）
-    #[inline]
+    #[inline(always)]
     fn version(&self) -> u32 {
         (self.raw >> 32) as u32
     }
@@ -77,7 +77,7 @@ impl Handle {
     /// Extract generation (upper 30 bits, excludes state bits)
     /// 
     /// 提取 generation（高 30 位，不包含状态位）
-    #[inline]
+    #[inline(always)]
     pub fn generation(&self) -> u32 {
         self.version() >> 2
     }
@@ -192,7 +192,7 @@ impl<T> Slot<T> {
     /// 
     /// 只返回 Vacant (next_free) 或 Occupied (value) 状态的内容
     /// Reserved 状态出于安全考虑视为 vacant
-    #[inline]
+    #[inline(always)]
     fn get<'a>(&'a self) -> SlotContent<'a, T> {
         unsafe {
             if self.is_occupied() {
@@ -214,7 +214,7 @@ impl<T> Slot<T> {
     /// 
     /// 只返回 Vacant (next_free) 或 Occupied (value) 状态的内容
     /// Reserved 状态出于安全考虑视为 vacant
-    #[inline]
+    #[inline(always)]
     fn get_mut<'a>(&'a mut self) -> SlotContentMut<'a, T> {
         unsafe {
             if self.is_occupied() {
@@ -338,7 +338,7 @@ impl<T> DeferredMap<T> {
     /// let map: DeferredMap<i32> = DeferredMap::new();
     /// assert!(map.is_empty());
     /// ```
-    #[inline]
+    #[inline(always)]
     pub fn new() -> Self {
         Self::with_capacity(0)
     }
@@ -383,7 +383,7 @@ impl<T> DeferredMap<T> {
     /// Encode index and generation into u64
     /// 
     /// 从 index 和 generation 编码为 u64
-    #[inline]
+    #[inline(always)]
     fn encode_key(index: u32, generation: u32) -> u64 {
         ((generation as u64) << 32) | (index as u64)
     }
@@ -391,7 +391,7 @@ impl<T> DeferredMap<T> {
     /// Decode u64 into index and generation
     /// 
     /// 从 u64 解码为 index 和 generation
-    #[inline]
+    #[inline(always)]
     fn decode_key(key: u64) -> (u32, u32) {
         let index = key as u32;
         let generation = (key >> 32) as u32;
@@ -502,35 +502,41 @@ impl<T> DeferredMap<T> {
     /// ```
     pub fn insert(&mut self, handle: Handle, value: T) -> Result<u64, DeferredMapError> {
         let index = handle.index();
-        let handle_version = handle.version();
+        #[cfg(debug_assertions)]
+        {
+            // Validate index (skip sentinel)
+            // 验证 index 有效（跳过 sentinel）
+            if unlikely(index == 0) {
+                return Err(DeferredMapError::InvalidHandle);
+            }
 
-        // Validate index (skip sentinel)
-        // 验证 index 有效（跳过 sentinel）
-        if unlikely(index == 0) {
-            return Err(DeferredMapError::InvalidHandle);
+            // Slot must exist (allocate_handle should have created it)
+            // slot 必须存在（allocate_handle 应该已经创建了它）
+            if unlikely(index as usize >= self.slots.len()) {
+                return Err(DeferredMapError::InvalidHandle);
+            }
         }
 
-        // Slot must exist (allocate_handle should have created it)
-        // slot 必须存在（allocate_handle 应该已经创建了它）
-        if unlikely(index as usize >= self.slots.len()) {
-            return Err(DeferredMapError::InvalidHandle);
-        }
+        let slot = unsafe { self.slots.get_unchecked_mut(index as usize) };
 
-        let slot = &mut self.slots[index as usize];
+        #[cfg(debug_assertions)]
+        {
+            let handle_version = handle.version();
 
-        // Validate version match (handle should have reserved version)
-        // 验证 version 匹配（handle 应该有 reserved version）
-        if unlikely(slot.version != handle_version) {
-            return Err(DeferredMapError::GenerationMismatch);
-        }
-
-        // Validate slot is in Reserved state
-        // 验证 slot 处于 Reserved 状态
-        if unlikely(!slot.is_reserved()) {
-            if slot.is_occupied() {
-                return Err(DeferredMapError::HandleAlreadyUsed);
-            } else {
+            // Validate version match (handle should have reserved version)
+            // 验证 version 匹配（handle 应该有 reserved version）
+            if unlikely(slot.version != handle_version) {
                 return Err(DeferredMapError::GenerationMismatch);
+            }
+
+            // Validate slot is in Reserved state
+            // 验证 slot 处于 Reserved 状态
+            if unlikely(!slot.is_reserved()) {
+                if slot.is_occupied() {
+                    return Err(DeferredMapError::HandleAlreadyUsed);
+                } else {
+                    return Err(DeferredMapError::GenerationMismatch);
+                }
             }
         }
 
