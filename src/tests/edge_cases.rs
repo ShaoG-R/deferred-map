@@ -1,7 +1,7 @@
 // Edge cases and error handling comprehensive tests
 // 边界情况和错误处理的全面测试
 
-use crate::{DeferredMap, Handle, DeferredMapError};
+use crate::DeferredMap;
 
 #[test]
 fn test_empty_map_operations() {
@@ -22,7 +22,7 @@ fn test_get_with_invalid_key() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     // Try to get with different key
     // 尝试使用不同的 key 获取
@@ -37,7 +37,7 @@ fn test_get_mut_with_invalid_key() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     // Try to get_mut with invalid keys
     // 尝试使用无效的 key 进行 get_mut
@@ -51,7 +51,7 @@ fn test_contains_key_with_invalid_key() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     assert!(map.contains_key(k));
     assert!(!map.contains_key(k + 1));
@@ -68,7 +68,7 @@ fn test_operations_after_clear() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -84,50 +84,6 @@ fn test_operations_after_clear() {
     
     assert!(map.is_empty());
     assert_eq!(map.len(), 0);
-}
-
-#[test]
-fn test_handle_with_sentinel_index() {
-    let mut map = DeferredMap::<i32>::new();
-    
-    // Create handle with index 0 (sentinel)
-    // 创建索引为 0 的 handle（sentinel）
-    let sentinel_handle = Handle::new(1u64 << 32);
-    
-    let result = map.insert(sentinel_handle, 42);
-    assert_eq!(result, Err(DeferredMapError::InvalidHandle));
-}
-
-#[test]
-fn test_handle_with_out_of_bounds_index() {
-    let mut map = DeferredMap::new();
-    
-    // Create handle with very large index that doesn't exist
-    // 创建具有不存在的非常大索引的 handle
-    let large_index = 1000u32;
-    let generation = 1u32;
-    let handle = Handle::new((generation as u64) << 32 | large_index as u64);
-    
-    // This should fail because it's not sequential allocation
-    // 这应该失败，因为它不是连续分配
-    let result = map.insert(handle, 42);
-    assert!(result.is_err());
-}
-
-#[test]
-fn test_generation_mismatch_even_generation() {
-    let mut map = DeferredMap::new();
-    
-    let h = map.allocate_handle();
-    let index = h.index();
-    map.insert(h, 42).unwrap();
-    
-    // Create handle with even generation (vacant state)
-    // 创建具有偶数 generation 的 handle（空闲状态）
-    let even_gen_handle = Handle::new(((2u32 as u64) << 32) | index as u64);
-    
-    let result = map.insert(even_gen_handle, 100);
-    assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
 }
 
 #[test]
@@ -154,7 +110,7 @@ fn test_iter_skips_removed_elements() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -176,7 +132,7 @@ fn test_iter_mut_skips_removed_elements() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -203,11 +159,11 @@ fn test_clone_with_values() {
     
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, 42).unwrap();
+    map.insert(h1, 42);
     
     let h2 = map.allocate_handle();
     let k2 = h2.key();
-    map.insert(h2, 100).unwrap();
+    map.insert(h2, 100);
     
     let cloned = map.clone();
     
@@ -222,7 +178,7 @@ fn test_clone_independence() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     let mut cloned = map.clone();
     
@@ -243,11 +199,11 @@ fn test_clone_from() {
     let mut map1 = DeferredMap::new();
     let h1 = map1.allocate_handle();
     let k1 = h1.key();
-    map1.insert(h1, 1).unwrap();
+    map1.insert(h1, 1);
     
     let mut map2 = DeferredMap::new();
     let h2 = map2.allocate_handle();
-    map2.insert(h2, 2).unwrap();
+    map2.insert(h2, 2);
     
     map2.clone_from(&map1);
     
@@ -288,15 +244,15 @@ fn test_operations_on_map_with_gaps() {
     // 创建有间隙的 map（插入、删除、插入模式）
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, 1).unwrap();
+    map.insert(h1, 1);
     
     let h2 = map.allocate_handle();
     let k2 = h2.key();
-    map.insert(h2, 2).unwrap();
+    map.insert(h2, 2);
     
     let h3 = map.allocate_handle();
     let k3 = h3.key();
-    map.insert(h3, 3).unwrap();
+    map.insert(h3, 3);
     
     // Remove middle element
     // 删除中间元素
@@ -306,7 +262,7 @@ fn test_operations_on_map_with_gaps() {
     // 插入新元素（应该复用 k2 的 slot）
     let h4 = map.allocate_handle();
     let k4 = h4.key();
-    map.insert(h4, 4).unwrap();
+    map.insert(h4, 4);
     
     // Verify all operations work correctly
     // 验证所有操作正常工作
@@ -324,7 +280,7 @@ fn test_get_after_modification() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     // Modify through get_mut
     // 通过 get_mut 修改
@@ -345,7 +301,7 @@ fn test_remove_during_iteration() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -362,27 +318,6 @@ fn test_remove_during_iteration() {
     // New iteration should show reduced count
     // 新迭代应该显示减少的计数
     assert_eq!(map.iter().count(), 5);
-}
-
-#[test]
-fn test_generation_overflow_handling() {
-    let mut map = DeferredMap::new();
-    
-    // Test with maximum generation value
-    // 使用最大 generation 值测试
-    let max_gen = u32::MAX;
-    let index = 1u32;
-    let handle = Handle::new((max_gen as u64) << 32 | index as u64);
-    
-    // This might fail or handle wrapping
-    // 这可能会失败或处理溢出
-    let result = map.insert(handle, 42);
-    
-    // Either succeeds or fails gracefully
-    // 要么成功要么优雅地失败
-    match result {
-        Ok(_) | Err(_) => {}, // Both outcomes are acceptable | 两种结果都可接受
-    }
 }
 
 #[test]
@@ -429,7 +364,7 @@ fn test_interleaved_operations() {
     
     // Insert
     let k1 = h1.key();
-    map.insert(h1, 1).unwrap();
+    map.insert(h1, 1);
     
     // Allocate more
     let h2 = map.allocate_handle();
@@ -439,7 +374,7 @@ fn test_interleaved_operations() {
     
     // Insert
     let k2 = h2.key();
-    map.insert(h2, 2).unwrap();
+    map.insert(h2, 2);
     
     // Remove
     map.remove(k1);
@@ -449,7 +384,7 @@ fn test_interleaved_operations() {
     
     // Insert
     let k3 = h3.key();
-    map.insert(h3, 3).unwrap();
+    map.insert(h3, 3);
     
     // Verify state
     assert_eq!(map.get(k2), Some(&2));
@@ -458,35 +393,16 @@ fn test_interleaved_operations() {
 }
 
 #[test]
-fn test_error_display() {
-    let err1 = DeferredMapError::InvalidHandle;
-    let err2 = DeferredMapError::HandleAlreadyUsed;
-    let err3 = DeferredMapError::GenerationMismatch;
-    
-    // Test Debug formatting
-    // 测试 Debug 格式化
-    let _ = format!("{:?}", err1);
-    let _ = format!("{:?}", err2);
-    let _ = format!("{:?}", err3);
-    
-    // Test Display formatting
-    // 测试 Display 格式化
-    let _ = format!("{}", err1);
-    let _ = format!("{}", err2);
-    let _ = format!("{}", err3);
-}
-
-#[test]
 fn test_map_with_option_type() {
     let mut map = DeferredMap::new();
     
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, Some(42)).unwrap();
+    map.insert(h1, Some(42));
     
     let h2 = map.allocate_handle();
     let k2 = h2.key();
-    map.insert(h2, None::<i32>).unwrap();
+    map.insert(h2, None::<i32>);
     
     assert_eq!(map.get(k1), Some(&Some(42)));
     assert_eq!(map.get(k2), Some(&None));
@@ -498,11 +414,11 @@ fn test_map_with_result_type() {
     
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, Ok::<i32, String>(42)).unwrap();
+    map.insert(h1, Ok::<i32, String>(42));
     
     let h2 = map.allocate_handle();
     let k2 = h2.key();
-    map.insert(h2, Err::<i32, String>("error".to_string())).unwrap();
+    map.insert(h2, Err::<i32, String>("error".to_string()));
     
     assert_eq!(map.get(k1), Some(&Ok(42)));
     assert_eq!(map.get(k2), Some(&Err("error".to_string())));

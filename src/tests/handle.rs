@@ -1,7 +1,7 @@
 // Handle related comprehensive tests
 // Handle 相关的全面测试
 
-use crate::{DeferredMap, Handle, DeferredMapError};
+use crate::{DeferredMap, Handle};
 
 #[test]
 fn test_handle_key() {
@@ -85,7 +85,7 @@ fn test_handle_generation_after_reuse() {
     let handle1 = map.allocate_handle();
     let gen1 = handle1.generation();
     let key1 = handle1.key();
-    map.insert(handle1, 42).unwrap();
+    map.insert(handle1, 42);
     
     // Remove to free the slot
     // 移除以释放 slot
@@ -113,7 +113,7 @@ fn test_handle_cannot_be_cloned() {
     
     // This should consume the handle
     // 这应该消耗 handle
-    map.insert(handle, 42).unwrap();
+    map.insert(handle, 42);
     
     // Uncommenting the following line should cause a compile error:
     // 取消注释以下行应该导致编译错误：
@@ -173,7 +173,7 @@ fn test_handle_generation_consistency_after_multiple_reuses() {
     let index = handle1.index();
     let mut prev_gen = handle1.generation();
     let mut current_key = handle1.key();
-    map.insert(handle1, 1).unwrap();
+    map.insert(handle1, 1);
     
     // Reuse the same slot multiple times
     // 多次复用相同的 slot
@@ -188,20 +188,8 @@ fn test_handle_generation_consistency_after_multiple_reuses() {
         prev_gen = curr_gen;
         
         current_key = handle.key();
-        map.insert(handle, i).unwrap();
+        map.insert(handle, i);
     }
-}
-
-#[test]
-fn test_invalid_handle_with_zero_index() {
-    let mut map = DeferredMap::new();
-    
-    // Create a handle with index 0 (sentinel index)
-    // 创建索引为 0 的 handle（sentinel 索引）
-    let invalid_handle = Handle::new(0 | (1u64 << 32));
-    
-    let result = map.insert(invalid_handle, 42);
-    assert_eq!(result, Err(DeferredMapError::InvalidHandle));
 }
 
 #[test]
@@ -245,8 +233,7 @@ fn test_release_handle_basic() {
     
     // Release it
     // 释放它
-    let result = map.release_handle(handle);
-    assert!(result.is_ok());
+    map.release_handle(handle);
     
     // Map should still be empty
     // Map 应该仍然为空
@@ -261,7 +248,7 @@ fn test_release_handle_allows_reuse() {
     // 分配并释放
     let handle1 = map.allocate_handle();
     let index1 = handle1.index();
-    map.release_handle(handle1).unwrap();
+    map.release_handle(handle1);
     
     // Allocate again, should reuse the same slot
     // 再次分配，应该复用相同的 slot
@@ -279,7 +266,7 @@ fn test_release_handle_increments_generation() {
     // 分配并释放
     let handle1 = map.allocate_handle();
     let gen1 = handle1.generation();
-    map.release_handle(handle1).unwrap();
+    map.release_handle(handle1);
     
     // Allocate again, generation should increment
     // 再次分配，generation 应该递增
@@ -289,79 +276,6 @@ fn test_release_handle_increments_generation() {
     // Generation (high 30 bits) should increment by 1
     // Generation（高 30 位）应该递增 1
     assert_eq!(gen2, gen1 + 1);
-}
-
-#[test]
-fn test_release_handle_already_used_fails() {
-    let mut map = DeferredMap::new();
-    
-    // Allocate and insert (use the handle)
-    // 分配并插入（使用 handle）
-    let handle = map.allocate_handle();
-    let key = handle.key();
-    map.insert(handle, 42).unwrap();
-    
-    // Try to release using the key (which is now occupied)
-    // 尝试使用 key 释放（现在已被占用）
-    let used_handle = Handle::new(key);
-    let result = map.release_handle(used_handle);
-    
-    assert_eq!(result, Err(DeferredMapError::HandleAlreadyUsed));
-    
-    // Value should still be accessible
-    // 值应该仍然可访问
-    assert_eq!(map.get(key), Some(&42));
-}
-
-#[test]
-fn test_release_handle_invalid_handle() {
-    let mut map = DeferredMap::<i32>::new();
-    
-    // Try to release a handle with sentinel index (0)
-    // 尝试释放索引为 0 的 handle（sentinel）
-    let invalid_handle = Handle::new(1u64 << 32);
-    let result = map.release_handle(invalid_handle);
-    
-    assert_eq!(result, Err(DeferredMapError::InvalidHandle));
-}
-
-#[test]
-fn test_release_handle_out_of_bounds() {
-    let mut map = DeferredMap::<i32>::new();
-    
-    // Try to release a handle with index that doesn't exist
-    // 尝试释放不存在索引的 handle
-    let large_index = 1000u32;
-    let version = 1u32;
-    let invalid_handle = Handle::new((version as u64) << 32 | large_index as u64);
-    
-    let result = map.release_handle(invalid_handle);
-    assert_eq!(result, Err(DeferredMapError::InvalidHandle));
-}
-
-#[test]
-fn test_release_handle_generation_mismatch() {
-    let mut map = DeferredMap::new();
-    
-    // Allocate, insert, and remove to increment generation
-    // 分配、插入和删除以递增 generation
-    let handle1 = map.allocate_handle();
-    let old_key = handle1.key();
-    let key1 = handle1.key();
-    map.insert(handle1, 42).unwrap();
-    map.remove(key1);
-    
-    // Allocate again (same slot, new generation)
-    // 再次分配（相同的 slot，新的 generation）
-    let handle2 = map.allocate_handle();
-    map.release_handle(handle2).unwrap();
-    
-    // Try to release with outdated handle
-    // 尝试使用过时的 handle 释放
-    let outdated_handle = Handle::new(old_key);
-    let result = map.release_handle(outdated_handle);
-    
-    assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
 }
 
 #[test]
@@ -375,8 +289,7 @@ fn test_release_handle_multiple_handles() {
     // Release all of them
     // 全部释放
     for handle in handles {
-        let result = map.release_handle(handle);
-        assert!(result.is_ok());
+        map.release_handle(handle);
     }
     
     // Map should still be empty
@@ -391,17 +304,17 @@ fn test_release_handle_doesnt_affect_len() {
     // Insert some elements
     // 插入一些元素
     let h1 = map.allocate_handle();
-    map.insert(h1, 1).unwrap();
+    map.insert(h1, 1);
     
     let h2 = map.allocate_handle();
-    map.insert(h2, 2).unwrap();
+    map.insert(h2, 2);
     
     assert_eq!(map.len(), 2);
     
     // Allocate and release a handle
     // 分配并释放一个 handle
     let h3 = map.allocate_handle();
-    map.release_handle(h3).unwrap();
+    map.release_handle(h3);
     
     // Length should remain unchanged
     // 长度应该保持不变
@@ -423,10 +336,10 @@ fn test_release_handle_interleaved_with_insertions() {
     
     // Insert some, release others
     // 插入一些，释放其他
-    map.insert(h1, 1).unwrap();
-    map.release_handle(h2).unwrap(); // Release unused | 释放未使用的
-    map.insert(h3, 3).unwrap();
-    map.release_handle(h4).unwrap(); // Release unused | 释放未使用的
+    map.insert(h1, 1);
+    map.release_handle(h2); // Release unused | 释放未使用的
+    map.insert(h3, 3);
+    map.release_handle(h4); // Release unused | 释放未使用的
     
     // Verify only inserted values are accessible
     // 验证只有插入的值可访问
@@ -443,14 +356,14 @@ fn test_release_handle_then_insert_at_same_slot() {
     // 分配并释放
     let handle1 = map.allocate_handle();
     let index1 = handle1.index();
-    map.release_handle(handle1).unwrap();
+    map.release_handle(handle1);
     
     // Allocate again and insert
     // 再次分配并插入
     let handle2 = map.allocate_handle();
     let index2 = handle2.index();
     let key2 = handle2.key();
-    map.insert(handle2, 42).unwrap();
+    map.insert(handle2, 42);
     
     // Should use the same index
     // 应该使用相同的索引
@@ -475,9 +388,9 @@ fn test_release_handle_lifo_order() {
     
     // Release them in order
     // 按顺序释放它们
-    map.release_handle(h1).unwrap();
-    map.release_handle(h2).unwrap();
-    map.release_handle(h3).unwrap();
+    map.release_handle(h1);
+    map.release_handle(h2);
+    map.release_handle(h3);
     
     // Allocate again, should reuse in LIFO order (last released first)
     // 再次分配，应该以 LIFO 顺序复用（最后释放的先用）
@@ -489,47 +402,6 @@ fn test_release_handle_lifo_order() {
     
     let h6 = map.allocate_handle();
     assert_eq!(h6.index(), idx1);
-}
-
-#[test]
-fn test_release_handle_double_release_fails() {
-    let mut map = DeferredMap::<i32>::new();
-    
-    // Allocate and release
-    // 分配并释放
-    let handle = map.allocate_handle();
-    let key = handle.key();
-    map.release_handle(handle).unwrap();
-    
-    // Try to release again with the same key value
-    // 尝试使用相同的 key 值再次释放
-    let duplicate_handle = Handle::new(key);
-    let result = map.release_handle(duplicate_handle);
-    
-    // Should fail with generation mismatch
-    // 应该因 generation 不匹配而失败
-    assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
-}
-
-#[test]
-fn test_release_handle_after_remove() {
-    let mut map = DeferredMap::new();
-    
-    // Allocate, insert, and remove
-    // 分配、插入和删除
-    let handle = map.allocate_handle();
-    let key = handle.key();
-    map.insert(handle, 42).unwrap();
-    map.remove(key);
-    
-    // Try to release using the removed key
-    // 尝试使用已删除的 key 释放
-    let removed_handle = Handle::new(key);
-    let result = map.release_handle(removed_handle);
-    
-    // Should fail because it's now vacant, not reserved
-    // 应该失败，因为现在是 vacant，不是 reserved
-    assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
 }
 
 #[test]
@@ -547,7 +419,7 @@ fn test_release_handle_with_capacity_check() {
     // Now release all of them
     // 现在全部释放
     for h in handles {
-        map.release_handle(h).unwrap();
+        map.release_handle(h);
     }
     
     // Capacity should remain
@@ -567,12 +439,12 @@ fn test_release_handle_mixed_with_removal() {
     // 分配并插入
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, 1).unwrap();
+    map.insert(h1, 1);
     
     // Allocate and release
     // 分配并释放
     let h2 = map.allocate_handle();
-    map.release_handle(h2).unwrap();
+    map.release_handle(h2);
     
     // Remove inserted value
     // 删除插入的值
@@ -587,8 +459,8 @@ fn test_release_handle_mixed_with_removal() {
     
     // Both should reuse slots
     // 两者都应该复用 slot
-    map.insert(h3, 3).unwrap();
-    map.insert(h4, 4).unwrap();
+    map.insert(h3, 3);
+    map.insert(h4, 4);
     
     assert_eq!(map.get(k3), Some(&3));
     assert_eq!(map.get(k4), Some(&4));

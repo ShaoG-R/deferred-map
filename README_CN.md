@@ -36,7 +36,7 @@
 
 ```toml
 [dependencies]
-deferred-map = "0.1"
+deferred-map = "0.2"
 ```
 
 ## 快速开始
@@ -54,7 +54,7 @@ fn main() {
     let key = handle.key();
     
     // 步骤 3：使用句柄插入值
-    map.insert(handle, "你好，世界！").unwrap();
+    map.insert(handle, "你好，世界！");
     
     // 访问值
     assert_eq!(map.get(key), Some(&"你好，世界！"));
@@ -76,7 +76,7 @@ let mut map = DeferredMap::new();
 // 分配并插入
 let handle = map.allocate_handle();
 let key = handle.key();
-map.insert(handle, 42).unwrap();
+map.insert(handle, 42);
 
 // 获取不可变引用
 assert_eq!(map.get(key), Some(&42));
@@ -120,8 +120,8 @@ let node1 = Node { value: 1, next: Some(key2) };
 let node2 = Node { value: 2, next: Some(key1) };
 
 // 插入节点
-graph.insert(handle1, node1).unwrap();
-graph.insert(handle2, node2).unwrap();
+graph.insert(handle1, node1);
+graph.insert(handle2, node2);
 ```
 
 ### 迭代
@@ -133,7 +133,7 @@ let mut map = DeferredMap::new();
 
 for i in 0..5 {
     let handle = map.allocate_handle();
-    map.insert(handle, i * 10).unwrap();
+    map.insert(handle, i * 10);
 }
 
 // 遍历所有条目
@@ -158,7 +158,7 @@ let mut map = DeferredMap::<String>::new();
 let handle = map.allocate_handle();
 
 // 决定不使用它
-map.release_handle(handle).unwrap();
+map.release_handle(handle);
 
 // 槽位被返回到空闲列表
 ```
@@ -184,8 +184,8 @@ DeferredMap::with_capacity(capacity: usize) -> Self
 
 ```rust
 allocate_handle(&mut self) -> Handle
-insert(&mut self, handle: Handle, value: T) -> Result<(), DeferredMapError>
-release_handle(&mut self, handle: Handle) -> Result<(), DeferredMapError>
+insert(&mut self, handle: Handle, value: T)
+release_handle(&mut self, handle: Handle)
 ```
 
 #### Handle 方法
@@ -252,18 +252,6 @@ union SlotUnion<T> {
 - **删除**：O(1) - 推入空闲列表
 - **内存**：槽位被重用，最小分配开销
 - **缓存友好**：连续内存布局
-
-## 错误处理
-
-库使用专用的错误类型：
-
-```rust
-pub enum DeferredMapError {
-    InvalidHandle,        // 句柄引用无效槽位
-    GenerationMismatch,   // 句柄代数与槽位不匹配
-    HandleAlreadyUsed,    // 尝试重用句柄
-}
-```
 
 ## 安全保证
 

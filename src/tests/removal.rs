@@ -9,7 +9,7 @@ fn test_basic_removal() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     assert_eq!(map.remove(k), Some(42));
     assert_eq!(map.len(), 0);
@@ -22,7 +22,7 @@ fn test_removal_returns_correct_value() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, "Hello".to_string()).unwrap();
+    map.insert(h, "Hello".to_string());
     
     let removed = map.remove(k);
     assert_eq!(removed, Some("Hello".to_string()));
@@ -44,7 +44,7 @@ fn test_removal_with_outdated_key() {
     
     let h = map.allocate_handle();
     let k1 = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     // Remove once
     // 删除一次
@@ -64,7 +64,7 @@ fn test_removal_decrements_len() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -83,7 +83,7 @@ fn test_removal_allows_slot_reuse() {
     
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, 42).unwrap();
+    map.insert(h1, 42);
     let index1 = k1 as u32;
     
     // Remove to free slot
@@ -105,7 +105,7 @@ fn test_removal_increments_generation() {
     let h1 = map.allocate_handle();
     let gen1 = h1.generation();
     let k1 = h1.key();
-    map.insert(h1, 42).unwrap();
+    map.insert(h1, 42);
     
     // Remove to increment generation
     // 删除以递增 generation
@@ -127,7 +127,7 @@ fn test_removal_of_multiple_elements() {
     for i in 0..100 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -154,7 +154,7 @@ fn test_removal_and_reinsertion_cycle() {
     for cycle in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, cycle).unwrap();
+        map.insert(h, cycle);
         
         assert_eq!(map.get(k), Some(&cycle));
         assert_eq!(map.remove(k), Some(cycle));
@@ -184,7 +184,7 @@ fn test_removal_with_custom_drop() {
     let k = h.key();
     map.insert(h, DropCounter {
         count: drop_count.clone(),
-    }).unwrap();
+    });
     
     // Drop count should be 0 before removal
     // 删除前 drop 计数应该是 0
@@ -208,7 +208,7 @@ fn test_removal_frees_memory() {
         let large_string = format!("{}", "a".repeat(1000));
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, large_string).unwrap();
+        map.insert(h, large_string);
         keys.push(k);
     }
     
@@ -229,7 +229,7 @@ fn test_removal_maintains_other_elements() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i * 10).unwrap();
+        map.insert(h, i * 10);
         keys.push(k);
     }
     
@@ -256,7 +256,7 @@ fn test_removal_pattern_lifo() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -278,7 +278,7 @@ fn test_removal_pattern_fifo() {
     for i in 0..10 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -300,7 +300,7 @@ fn test_removal_pattern_random() {
     for i in 0..20 {
         let h = map.allocate_handle();
         let k = h.key();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
         keys.push(k);
     }
     
@@ -321,7 +321,7 @@ fn test_removal_after_clear() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     map.clear();
     
@@ -339,17 +339,17 @@ fn test_removal_slot_added_to_free_list() {
     // 插入并删除以创建空闲列表
     let h1 = map.allocate_handle();
     let k1 = h1.key();
-    map.insert(h1, 1).unwrap();
+    map.insert(h1, 1);
     map.remove(k1);
     
     let h2 = map.allocate_handle();
     let k2 = h2.key();
-    map.insert(h2, 2).unwrap();
+    map.insert(h2, 2);
     map.remove(k2);
     
     let h3 = map.allocate_handle();
     let k3 = h3.key();
-    map.insert(h3, 3).unwrap();
+    map.insert(h3, 3);
     map.remove(k3);
     
     // Allocating new handles should reuse slots in LIFO order
@@ -369,7 +369,7 @@ fn test_removal_with_box_type() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, Box::new(42)).unwrap();
+    map.insert(h, Box::new(42));
     
     let removed = map.remove(k);
     assert_eq!(removed, Some(Box::new(42)));
@@ -381,7 +381,7 @@ fn test_removal_doesnt_affect_capacity() {
     
     for i in 0..10 {
         let h = map.allocate_handle();
-        map.insert(h, i).unwrap();
+        map.insert(h, i);
     }
     
     let capacity_before = map.capacity();
@@ -390,7 +390,7 @@ fn test_removal_doesnt_affect_capacity() {
     // 删除一些元素
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 0).unwrap();
+    map.insert(h, 0);
     map.remove(k);
     
     let capacity_after = map.capacity();
@@ -406,7 +406,7 @@ fn test_double_removal_fails() {
     
     let h = map.allocate_handle();
     let k = h.key();
-    map.insert(h, 42).unwrap();
+    map.insert(h, 42);
     
     // First removal succeeds
     // 第一次删除成功

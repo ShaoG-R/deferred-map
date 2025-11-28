@@ -15,7 +15,7 @@ fn bench_insert(c: &mut Criterion) {
                 let mut map = DeferredMap::new();
                 for i in 0..size {
                     let handle = map.allocate_handle();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                 }
                 map
             });
@@ -45,7 +45,7 @@ fn bench_preallocated_insert(c: &mut Criterion) {
                 let mut map = DeferredMap::with_capacity(size);
                 for i in 0..size {
                     let handle = map.allocate_handle();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                 }
                 map
             });
@@ -76,7 +76,7 @@ fn bench_get(c: &mut Criterion) {
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
             let key = handle.key();
-            deferred_map.insert(handle, i).unwrap();
+            deferred_map.insert(handle, i);
             keys.push(key);
         }
         
@@ -122,7 +122,7 @@ fn bench_random_get(c: &mut Criterion) {
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
             let key = handle.key();
-            deferred_map.insert(handle, i).unwrap();
+            deferred_map.insert(handle, i);
             keys.push(key);
         }
         
@@ -165,7 +165,7 @@ fn bench_remove(c: &mut Criterion) {
                     for i in 0..size {
                         let handle = map.allocate_handle();
                         let key = handle.key();
-                        map.insert(handle, i).unwrap();
+                        map.insert(handle, i);
                         keys.push(key);
                     }
                     (map, keys)
@@ -212,7 +212,7 @@ fn bench_iter(c: &mut Criterion) {
         let mut deferred_map = DeferredMap::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
-            deferred_map.insert(handle, i).unwrap();
+            deferred_map.insert(handle, i);
         }
         
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, _| {
@@ -259,7 +259,7 @@ fn bench_mixed_operations(c: &mut Criterion) {
                 for i in 0..size {
                     let handle = map.allocate_handle();
                     let key = handle.key();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                     keys.push(key);
                 }
                 
@@ -276,7 +276,7 @@ fn bench_mixed_operations(c: &mut Criterion) {
                 // 再插入一半
                 for i in 0..size / 2 {
                     let handle = map.allocate_handle();
-                    map.insert(handle, black_box(i + size)).unwrap();
+                    map.insert(handle, black_box(i + size));
                 }
                 
                 map
@@ -329,7 +329,7 @@ fn bench_churn(c: &mut Criterion) {
                 for i in 0..size / 2 {
                     let handle = map.allocate_handle();
                     let key = handle.key();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                     keys.push(key);
                 }
                 
@@ -343,7 +343,7 @@ fn bench_churn(c: &mut Criterion) {
                     // 插入一个
                     let handle = map.allocate_handle();
                     let key = handle.key();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                     if i < keys.len() {
                         keys[i] = key;
                     }
@@ -408,7 +408,7 @@ fn bench_deferred_insertion(c: &mut Criterion) {
                 
                 // 第二阶段：使用 handles 插入值
                 for (i, handle) in handles.into_iter().enumerate() {
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                 }
                 
                 map
@@ -421,7 +421,7 @@ fn bench_deferred_insertion(c: &mut Criterion) {
                 let mut map = DeferredMap::new();
                 for i in 0..size {
                     let handle = map.allocate_handle();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                 }
                 map
             });
@@ -466,7 +466,7 @@ fn bench_clone(c: &mut Criterion) {
         let mut deferred_map = DeferredMap::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
-            deferred_map.insert(handle, i).unwrap();
+            deferred_map.insert(handle, i);
         }
         
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, _| {
@@ -505,7 +505,7 @@ fn bench_sparse(c: &mut Criterion) {
                 for i in 0..size {
                     let handle = map.allocate_handle();
                     let key = handle.key();
-                    map.insert(handle, black_box(i)).unwrap();
+                    map.insert(handle, black_box(i));
                     keys.push(key);
                 }
                 
@@ -567,7 +567,7 @@ fn bench_sequential_access(c: &mut Criterion) {
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
             let key = handle.key();
-            deferred_map.insert(handle, i).unwrap();
+            deferred_map.insert(handle, i);
             keys.push(key);
         }
         

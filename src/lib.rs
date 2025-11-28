@@ -1,7 +1,6 @@
 use std::fmt;
 use std::mem::ManuallyDrop;
 
-mod error;
 mod utils;
 #[cfg(test)]
 mod tests {
@@ -14,7 +13,6 @@ mod tests {
 
 }
 
-pub use error::DeferredMapError;
 use utils::{likely, unlikely};
 
 /// Handle is a one-time token for inserting values into DeferredMap
@@ -34,7 +32,7 @@ use utils::{likely, unlikely};
 /// let mut map = DeferredMap::new();
 /// let handle = map.allocate_handle();
 /// let key = handle.key();
-/// map.insert(handle, 42).unwrap();
+/// map.insert(handle, 42);
 /// assert_eq!(map.get(key), Some(&42));
 /// ```
 #[derive(Debug, PartialEq, Eq)]
@@ -309,7 +307,7 @@ impl<T: fmt::Debug> fmt::Debug for Slot<T> {
 /// let key = handle.key();
 /// 
 /// // Insert value later | 之后插入值
-/// map.insert(handle, 42).unwrap();
+/// map.insert(handle, 42);
 /// 
 /// // Access value | 访问值
 /// assert_eq!(map.get(key), Some(&42));
@@ -420,7 +418,7 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
     /// let key = handle.key();
-    /// map.insert(handle, "value").unwrap();
+    /// map.insert(handle, "value");
     /// assert_eq!(map.get(key), Some(&"value"));
     /// ```
     pub fn allocate_handle(&mut self) -> Handle {
@@ -479,17 +477,9 @@ impl<T> DeferredMap<T> {
     /// - `handle`: The Handle obtained from `allocate_handle`
     /// - `value`: The value to insert
     /// 
-    /// # Returns
-    /// - `Ok(())`: Successfully inserted
-    /// - `Err(DeferredMapError)`: Error if the Handle is invalid or already used
-    /// 
     /// # 参数
     /// - `handle`: 从 `allocate_handle` 获取的 Handle
     /// - `value`: 要插入的值
-    /// 
-    /// # 返回值
-    /// - `Ok(())`: 成功插入
-    /// - `Err(DeferredMapError)`: 如果 Handle 无效或已被使用则返回错误
     /// 
     /// # Examples (示例)
     /// 
@@ -499,48 +489,29 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
     /// let key = handle.key();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// assert_eq!(map.get(key), Some(&42));
     /// ```
-    pub fn insert(&mut self, handle: Handle, value: T) -> Result<(), DeferredMapError> {
+    pub fn insert(&mut self, handle: Handle, value: T) {
         let index = handle.index();
-        #[cfg(debug_assertions)]
-        {
-            // Validate index (skip sentinel)
-            // 验证 index 有效（跳过 sentinel）
-            if unlikely(index == 0) {
-                return Err(DeferredMapError::InvalidHandle);
-            }
-
-            // Slot must exist (allocate_handle should have created it)
-            // slot 必须存在（allocate_handle 应该已经创建了它）
-            if unlikely(index as usize >= self.slots.len()) {
-                return Err(DeferredMapError::InvalidHandle);
-            }
-        }
+        
+        // Validate index (skip sentinel)
+        // 验证 index 有效（跳过 sentinel）
+        debug_assert!(index != 0, "Invalid handle: sentinel index");
+        
+        // Slot must exist (allocate_handle should have created it)
+        // slot 必须存在（allocate_handle 应该已经创建了它）
+        debug_assert!((index as usize) < self.slots.len(), "Invalid handle: index out of bounds");
 
         let slot = unsafe { self.slots.get_unchecked_mut(index as usize) };
 
-        #[cfg(debug_assertions)]
-        {
-            let handle_generation = handle.generation();
-
-            // Validate generation match (handle stores generation, not version)
-            // 验证 generation 匹配（handle 存储 generation，不是 version）
-            if unlikely(slot.generation() != handle_generation) {
-                return Err(DeferredMapError::GenerationMismatch);
-            }
-
-            // Validate slot is in Reserved state
-            // 验证 slot 处于 Reserved 状态
-            if unlikely(!slot.is_reserved()) {
-                if slot.is_occupied() {
-                    return Err(DeferredMapError::HandleAlreadyUsed);
-                } else {
-                    return Err(DeferredMapError::GenerationMismatch);
-                }
-            }
-        }
+        // Validate generation match (handle stores generation, not version)
+        // 验证 generation 匹配（handle 存储 generation，不是 version）
+        debug_assert!(slot.generation() == handle.generation(), "Generation mismatch");
+        
+        // Validate slot is in Reserved state
+        // 验证 slot 处于 Reserved 状态
+        debug_assert!(slot.is_reserved(), "Handle already used or invalid state");
 
         // Insert value and transition: reserved(0bXX01) -> occupied(0bXX11)
         // 插入值并状态转换：reserved(0bXX01) -> occupied(0bXX11)
@@ -548,8 +519,6 @@ impl<T> DeferredMap<T> {
         slot.version += 2; // 0bXX01 -> 0bXX11
         
         self.num_elems += 1;
-        
-        Ok(())
     }
 
     /// Get immutable reference to value by u64 key
@@ -578,7 +547,7 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
     /// let key = handle.key();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// assert_eq!(map.get(key), Some(&42));
     /// ```
     #[inline]
@@ -630,7 +599,7 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
     /// let key = handle.key();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// 
     /// if let Some(value) = map.get_mut(key) {
     ///     *value = 100;
@@ -690,7 +659,7 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
     /// let key = handle.key();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// 
     /// assert_eq!(map.remove(key), Some(42));
     /// assert_eq!(map.get(key), None);
@@ -744,16 +713,8 @@ impl<T> DeferredMap<T> {
     /// # Parameters
     /// - `handle`: The Handle to release
     /// 
-    /// # Returns
-    /// - `Ok(())`: Handle successfully released
-    /// - `Err(DeferredMapError)`: Error if handle is invalid or already used
-    /// 
     /// # 参数
     /// - `handle`: 要释放的 Handle
-    /// 
-    /// # 返回值
-    /// - `Ok(())`: Handle 成功释放
-    /// - `Err(DeferredMapError)`: 如果 handle 无效或已被使用则返回错误
     /// 
     /// # Examples (示例)
     /// 
@@ -765,41 +726,29 @@ impl<T> DeferredMap<T> {
     /// 
     /// // Decided not to use it
     /// // 决定不使用它
-    /// map.release_handle(handle).unwrap();
+    /// map.release_handle(handle);
     /// ```
-    pub fn release_handle(&mut self, handle: Handle) -> Result<(), DeferredMapError> {
+    pub fn release_handle(&mut self, handle: Handle) {
         let index = handle.index();
         let handle_generation = handle.generation();
 
         // Validate index (skip sentinel)
         // 验证 index 有效（跳过 sentinel）
-        if unlikely(index == 0) {
-            return Err(DeferredMapError::InvalidHandle);
-        }
+        debug_assert!(index != 0, "Invalid handle: sentinel index");
 
         // Slot must exist
         // slot 必须存在
-        if unlikely(index as usize >= self.slots.len()) {
-            return Err(DeferredMapError::InvalidHandle);
-        }
+        debug_assert!((index as usize) < self.slots.len(), "Invalid handle: index out of bounds");
 
         let slot = &mut self.slots[index as usize];
 
         // Validate generation match (handle stores generation, not version)
         // 验证 generation 匹配（handle 存储 generation，不是 version）
-        if unlikely(slot.generation() != handle_generation) {
-            return Err(DeferredMapError::GenerationMismatch);
-        }
+        debug_assert!(slot.generation() == handle_generation, "Generation mismatch");
 
         // Validate slot is in Reserved state
         // 验证 slot 处于 Reserved 状态
-        if unlikely(!slot.is_reserved()) {
-            if slot.is_occupied() {
-                return Err(DeferredMapError::HandleAlreadyUsed);
-            } else {
-                return Err(DeferredMapError::GenerationMismatch);
-            }
-        }
+        debug_assert!(slot.is_reserved(), "Handle already used or invalid state");
 
         // Add this slot to free list head
         // 将此 slot 加入空闲列表头部
@@ -809,8 +758,6 @@ impl<T> DeferredMap<T> {
         // Transition: reserved(0bXX01) -> vacant(0bYY00, next generation)
         // 状态转换：reserved(0bXX01) -> vacant(0bYY00，下一代）
         slot.version = slot.version.wrapping_add(3); // 0bXX01 + 3 = 0bYY00
-
-        Ok(())
     }
 
     /// Check if key exists
@@ -837,7 +784,7 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
     /// let key = handle.key();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// 
     /// assert!(map.contains_key(key));
     /// map.remove(key);
@@ -861,7 +808,7 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(map.len(), 0);
     /// 
     /// let handle = map.allocate_handle();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// assert_eq!(map.len(), 1);
     /// ```
     #[inline]
@@ -916,7 +863,7 @@ impl<T> DeferredMap<T> {
     /// 
     /// let mut map = DeferredMap::new();
     /// let handle = map.allocate_handle();
-    /// map.insert(handle, 42).unwrap();
+    /// map.insert(handle, 42);
     /// 
     /// map.clear();
     /// assert!(map.is_empty());
@@ -946,10 +893,10 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// 
     /// let h1 = map.allocate_handle();
-    /// map.insert(h1, 1).unwrap();
+    /// map.insert(h1, 1);
     /// 
     /// let h2 = map.allocate_handle();
-    /// map.insert(h2, 2).unwrap();
+    /// map.insert(h2, 2);
     /// 
     /// let sum: i32 = map.iter().map(|(_, v)| v).sum();
     /// assert_eq!(sum, 3);
@@ -978,10 +925,10 @@ impl<T> DeferredMap<T> {
     /// let mut map = DeferredMap::new();
     /// 
     /// let h1 = map.allocate_handle();
-    /// map.insert(h1, 1).unwrap();
+    /// map.insert(h1, 1);
     /// 
     /// let h2 = map.allocate_handle();
-    /// map.insert(h2, 2).unwrap();
+    /// map.insert(h2, 2);
     /// 
     /// for (_, value) in map.iter_mut() {
     ///     *value *= 2;
@@ -1039,26 +986,9 @@ mod basic_tests {
         
         let handle = map.allocate_handle();
         let key = handle.key();
-        map.insert(handle, 42).unwrap();
+        map.insert(handle, 42);
         
         assert_eq!(map.get(key), Some(&42));
-    }
-
-    #[test]
-    fn test_handle_cannot_be_used_twice() {
-        let mut map = DeferredMap::new();
-        
-        let handle = map.allocate_handle();
-        let key = handle.key();
-        map.insert(handle, 42).unwrap();
-        
-        // Attempting to insert again with the same key should fail
-        // 尝试使用相同的 key 再次插入应该失败
-        let handle2 = Handle::new(key);
-        let result = map.insert(handle2, 100);
-        
-        assert_eq!(result, Err(DeferredMapError::HandleAlreadyUsed));
-        assert_eq!(map.get(key), Some(&42)); // Original value unchanged | 原值不变
     }
 
     #[test]
@@ -1067,7 +997,7 @@ mod basic_tests {
         
         let handle1 = map.allocate_handle();
         let key1 = handle1.key();
-        map.insert(handle1, 42).unwrap();
+        map.insert(handle1, 42);
         
         assert_eq!(map.len(), 1);
         assert_eq!(map.remove(key1), Some(42));
@@ -1078,31 +1008,13 @@ mod basic_tests {
         // 分配新的 handle 应该复用之前的 slot
         let handle2 = map.allocate_handle();
         let key2 = handle2.key();
-        map.insert(handle2, 100).unwrap();
+        map.insert(handle2, 100);
         
         // key2 should have different generation
         // key2 应该有不同的 generation
         assert_ne!(key1, key2);
         assert_eq!(map.get(key2), Some(&100));
         assert_eq!(map.get(key1), None); // Old key should be invalid | 旧 key 应该无效
-    }
-
-    #[test]
-    fn test_generation_mismatch() {
-        let mut map = DeferredMap::new();
-        
-        let handle = map.allocate_handle();
-        let old_key = handle.key();
-        map.insert(handle, 42).unwrap();
-        
-        map.remove(old_key);
-        
-        // Attempting to use old key should fail
-        // 尝试使用旧的 key 对应的 handle 应该失败
-        let old_handle = Handle::new(old_key);
-        let result = map.insert(old_handle, 100);
-        
-        assert_eq!(result, Err(DeferredMapError::GenerationMismatch));
     }
 
     #[test]
@@ -1113,7 +1025,7 @@ mod basic_tests {
         for i in 0..10 {
             let handle = map.allocate_handle();
             let key = handle.key();
-            map.insert(handle, i * 10).unwrap();
+            map.insert(handle, i * 10);
             keys.push(key);
         }
         
@@ -1130,7 +1042,7 @@ mod basic_tests {
         
         let handle = map.allocate_handle();
         let key = handle.key();
-        map.insert(handle, 42).unwrap();
+        map.insert(handle, 42);
         
         if let Some(value) = map.get_mut(key) {
             *value = 100;
@@ -1145,7 +1057,7 @@ mod basic_tests {
         
         let handle = map.allocate_handle();
         let key = handle.key();
-        map.insert(handle, 42).unwrap();
+        map.insert(handle, 42);
         
         assert!(map.contains_key(key));
         
@@ -1161,7 +1073,7 @@ mod basic_tests {
         
         let handle = map.allocate_handle();
         let key = handle.key();
-        map.insert(handle, 42).unwrap();
+        map.insert(handle, 42);
         
         assert!(!map.is_empty());
         
@@ -1175,7 +1087,7 @@ mod basic_tests {
         
         for _ in 0..5 {
             let handle = map.allocate_handle();
-            map.insert(handle, 42).unwrap();
+            map.insert(handle, 42);
         }
         
         assert_eq!(map.len(), 5);
@@ -1188,7 +1100,7 @@ mod basic_tests {
         
         for i in 0..5 {
             let handle = map.allocate_handle();
-            map.insert(handle, i).unwrap();
+            map.insert(handle, i);
         }
         
         assert_eq!(map.len(), 5);
@@ -1208,7 +1120,7 @@ mod basic_tests {
         for i in 0..5 {
             let handle = map.allocate_handle();
             let key = handle.key();
-            map.insert(handle, i * 10).unwrap();
+            map.insert(handle, i * 10);
             keys.push(key);
         }
         
@@ -1228,7 +1140,7 @@ mod basic_tests {
         
         for i in 0..5 {
             let handle = map.allocate_handle();
-            map.insert(handle, i).unwrap();
+            map.insert(handle, i);
         }
         
         for (_, value) in map.iter_mut() {
@@ -1264,7 +1176,7 @@ mod basic_tests {
         for i in 0..100 {
             let handle = map.allocate_handle();
             let key = handle.key();
-            map.insert(handle, i).unwrap();
+            map.insert(handle, i);
             keys.push(key);
         }
         
@@ -1282,7 +1194,7 @@ mod basic_tests {
         for i in 0..50 {
             let handle = map.allocate_handle();
             let key = handle.key();
-            map.insert(handle, i + 1000).unwrap();
+            map.insert(handle, i + 1000);
             keys[i * 2] = key; // Update key | 更新 key
         }
         
@@ -1308,7 +1220,7 @@ mod basic_tests {
         for i in 0..10 {
             let handle = map.allocate_handle();
             let key = handle.key();
-            map.insert(handle, i).unwrap();
+            map.insert(handle, i);
             keys.push(key);
         }
         
@@ -1322,7 +1234,7 @@ mod basic_tests {
         // 重新插入，version 应该递增
         let handle = map.allocate_handle();
         let new_key = handle.key();
-        map.insert(handle, 100).unwrap();
+        map.insert(handle, 100);
         
         // Old key should be invalid | 旧 key 应该无效
         assert_eq!(map.get(keys[0]), None);

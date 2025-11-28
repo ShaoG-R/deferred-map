@@ -36,7 +36,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-deferred-map = "0.1"
+deferred-map = "0.2"
 ```
 
 ## Quick Start
@@ -54,7 +54,7 @@ fn main() {
     let key = handle.key();
     
     // Step 3: Insert value using the handle
-    map.insert(handle, "Hello, World!").unwrap();
+    map.insert(handle, "Hello, World!");
     
     // Access the value
     assert_eq!(map.get(key), Some(&"Hello, World!"));
@@ -76,7 +76,7 @@ let mut map = DeferredMap::new();
 // Allocate and insert
 let handle = map.allocate_handle();
 let key = handle.key();
-map.insert(handle, 42).unwrap();
+map.insert(handle, 42);
 
 // Get immutable reference
 assert_eq!(map.get(key), Some(&42));
@@ -120,8 +120,8 @@ let node1 = Node { value: 1, next: Some(key2) };
 let node2 = Node { value: 2, next: Some(key1) };
 
 // Insert the nodes
-graph.insert(handle1, node1).unwrap();
-graph.insert(handle2, node2).unwrap();
+graph.insert(handle1, node1);
+graph.insert(handle2, node2);
 ```
 
 ### Iteration
@@ -133,7 +133,7 @@ let mut map = DeferredMap::new();
 
 for i in 0..5 {
     let handle = map.allocate_handle();
-    map.insert(handle, i * 10).unwrap();
+    map.insert(handle, i * 10);
 }
 
 // Iterate over all entries
@@ -158,7 +158,7 @@ let mut map = DeferredMap::<String>::new();
 let handle = map.allocate_handle();
 
 // Decide not to use it
-map.release_handle(handle).unwrap();
+map.release_handle(handle);
 
 // The slot is returned to the free list
 ```
@@ -184,8 +184,8 @@ DeferredMap::with_capacity(capacity: usize) -> Self
 
 ```rust
 allocate_handle(&mut self) -> Handle
-insert(&mut self, handle: Handle, value: T) -> Result<(), DeferredMapError>
-release_handle(&mut self, handle: Handle) -> Result<(), DeferredMapError>
+insert(&mut self, handle: Handle, value: T)
+release_handle(&mut self, handle: Handle)
 ```
 
 #### Handle Methods
@@ -252,18 +252,6 @@ union SlotUnion<T> {
 - **Removal**: O(1) - Push to free list
 - **Memory**: Slots are reused, minimal allocation overhead
 - **Cache Friendly**: Contiguous memory layout
-
-## Error Handling
-
-The library uses a dedicated error type:
-
-```rust
-pub enum DeferredMapError {
-    InvalidHandle,        // Handle refers to invalid slot
-    GenerationMismatch,   // Handle generation doesn't match slot
-    HandleAlreadyUsed,    // Attempting to reuse a handle
-}
-```
 
 ## Safety Guarantees
 
