@@ -220,10 +220,13 @@ impl Version {
 }
 
 pub trait Key: Copy + Clone + PartialEq + Eq + Hash + Debug {
+    type Raw: Copy + Clone + PartialEq + Eq + Hash + Debug;
+    unsafe fn from_raw(raw: Self::Raw, #[cfg(debug_assertions)] map_id: u64) -> Self;
     fn from_parts(index: u32, generation: Generation, #[cfg(debug_assertions)] map_id: u64)
     -> Self;
     fn index(&self) -> u32;
     fn generation(&self) -> Generation;
+    fn raw(&self) -> Self::Raw;
     #[cfg(debug_assertions)]
     fn map_id(&self) -> u64;
 }
@@ -236,6 +239,17 @@ pub struct DefaultKey {
 }
 
 impl Key for DefaultKey {
+    type Raw = u64;
+
+    #[inline(always)]
+    unsafe fn from_raw(raw: Self::Raw, #[cfg(debug_assertions)] map_id: u64) -> Self {
+        Self {
+            raw,
+            #[cfg(debug_assertions)]
+            map_id,
+        }
+    }
+
     #[inline(always)]
     fn from_parts(
         index: u32,
@@ -258,6 +272,11 @@ impl Key for DefaultKey {
     fn generation(&self) -> Generation {
         // We guarantee generation is non-zero upon creation
         unsafe { Generation(NonZeroU32::new_unchecked((self.raw >> 32) as u32)) }
+    }
+
+    #[inline(always)]
+    fn raw(&self) -> Self::Raw {
+        self.raw
     }
 
     #[cfg(debug_assertions)]
