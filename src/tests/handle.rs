@@ -1,7 +1,7 @@
 // Handle related comprehensive tests
 // Handle 相关的全面测试
 
-use crate::{DeferredMap, Handle};
+use crate::{DeferredMap, Handle, Key};
 
 #[test]
 fn test_handle_key() {
@@ -29,9 +29,9 @@ fn test_handle_generation_extraction() {
     let handle = map.allocate_handle();
 
     let generation = handle.generation();
-    // First generation should be 0 (upper 30 bits of version 0b01)
-    // 第一次 generation 应该是 0（version 0b01 的高 30 位）
-    assert_eq!(generation, 0);
+    // First generation should be 1 (started at 0b101)
+    // 第一次 generation 应该是 1（从 0b101 开始）
+    assert_eq!(generation.get(), 1);
 }
 
 #[test]
@@ -98,7 +98,7 @@ fn test_handle_generation_after_reuse() {
 
     // Generation (high 30 bits) should be incremented by 1
     // Generation（高 30 位）应该递增 1
-    assert_eq!(gen2, gen1 + 1);
+    assert_eq!(gen2.get(), gen1.get() + 1);
 }
 
 #[test]
@@ -184,7 +184,7 @@ fn test_handle_generation_consistency_after_multiple_reuses() {
         assert_eq!(handle.index(), index); // Should reuse same slot | 应该复用相同的 slot
 
         let curr_gen = handle.generation();
-        assert_eq!(curr_gen, prev_gen + 1); // Generation (high 30 bits) should increment by 1 | Generation（高 30 位）应该递增 1
+        assert_eq!(curr_gen.get(), prev_gen.get() + 1); // Generation (high 30 bits) should increment by 1 | Generation（高 30 位）应该递增 1
         prev_gen = curr_gen;
 
         current_key = handle.key();
@@ -200,7 +200,7 @@ fn test_handle_with_max_index() {
     let generation = 1u32;
     let key = (generation as u64) << 32 | max_index as u64;
     #[cfg(debug_assertions)]
-    let key = crate::Key {
+    let key = crate::DefaultKey {
         raw: key,
         #[cfg(debug_assertions)]
         map_id: 0,
@@ -208,7 +208,7 @@ fn test_handle_with_max_index() {
     let handle = Handle::new(key);
 
     assert_eq!(handle.index(), max_index);
-    assert_eq!(handle.generation(), generation); // generation is stored directly in high 32 bits
+    assert_eq!(handle.generation().get(), generation); // generation is stored directly in high 32 bits
 }
 
 #[test]
@@ -219,7 +219,7 @@ fn test_handle_with_max_generation() {
     let max_generation = u32::MAX; // Now generation is full 32 bits
     let key = (max_generation as u64) << 32 | index as u64;
     #[cfg(debug_assertions)]
-    let key = crate::Key {
+    let key = crate::DefaultKey {
         raw: key,
         #[cfg(debug_assertions)]
         map_id: 0,
@@ -227,7 +227,7 @@ fn test_handle_with_max_generation() {
     let handle = Handle::new(key);
 
     assert_eq!(handle.index(), index);
-    assert_eq!(handle.generation(), max_generation);
+    assert_eq!(handle.generation().get(), max_generation);
 }
 
 // ============================================================================
@@ -287,7 +287,7 @@ fn test_release_handle_increments_generation() {
 
     // Generation (high 30 bits) should increment by 1
     // Generation（高 30 位）应该递增 1
-    assert_eq!(gen2, gen1 + 1);
+    assert_eq!(gen2.get(), gen1.get() + 1);
 }
 
 #[test]

@@ -1,6 +1,7 @@
 use crate::utils::unlikely;
 use std::fmt;
 
+/// 存储值及其所属的代数（generation）。
 /// Internal slot storage for SecondaryMap.
 ///
 /// Stores the value and the generation it belongs to.
@@ -8,9 +9,22 @@ use std::fmt;
 /// SecondaryMap 的内部 slot 存储。
 /// 存储值及其所属的代数（generation）。
 #[derive(Clone, Debug)]
-struct Slot<T> {
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub(crate) struct Slot<T> {
     value: T,
-    generation: u32,
+    generation: crate::Generation,
+}
+
+impl<T> Slot<T> {
+    #[inline(always)]
+    fn new(value: T, generation: crate::Generation) -> Self {
+        Self { value, generation }
+    }
+
+    #[inline(always)]
+    fn generation(&self) -> crate::Generation {
+        self.generation
+    }
 }
 
 /// A secondary map that associates data with keys from a `DeferredMap`.
@@ -52,7 +66,7 @@ struct Slot<T> {
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Clone)]
-pub struct SecondaryMap<T> {
+pub struct SecondaryMap<T, K: crate::Key = crate::DefaultKey> {
     // We use Option to represent presence.
     // None means no value associated with this index for the stored generation.
     // Even if Some is present, we must check generation matching.
@@ -60,15 +74,17 @@ pub struct SecondaryMap<T> {
     num_elems: usize,
     #[cfg(debug_assertions)]
     map_id: Option<u64>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    _marker: std::marker::PhantomData<K>,
 }
 
-impl<T> Default for SecondaryMap<T> {
+impl<T, K: crate::Key> Default for SecondaryMap<T, K> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<T> SecondaryMap<T> {
+impl<T, K: crate::Key> SecondaryMap<T, K> {
     /// Create a new empty SecondaryMap
     ///
     /// 创建一个新的空 SecondaryMap
@@ -79,6 +95,7 @@ impl<T> SecondaryMap<T> {
             num_elems: 0,
             #[cfg(debug_assertions)]
             map_id: None,
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -92,6 +109,7 @@ impl<T> SecondaryMap<T> {
             num_elems: 0,
             #[cfg(debug_assertions)]
             map_id: None,
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -108,20 +126,22 @@ impl<T> SecondaryMap<T> {
     /// # Returns
     /// - `Some(old_value)` if a value existed for the EXACT same key (same index and generation).
     /// - `None` otherwise.
-    pub fn insert(&mut self, key: crate::Key, value: T) -> Option<T> {
+    pub fn insert(&mut self, key: K, value: T) -> Option<T> {
         #[cfg(debug_assertions)]
         {
             if let Some(id) = self.map_id {
                 debug_assert_eq!(
-                    id, key.map_id,
+                    id,
+                    key.map_id(),
                     "Key used with wrong map instance in SecondaryMap"
                 );
             } else {
-                self.map_id = Some(key.map_id);
+                self.map_id = Some(key.map_id());
             }
         }
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
         let index = index as usize;
 
         // Ensure we have enough slots
@@ -136,15 +156,15 @@ impl<T> SecondaryMap<T> {
 
         match slot_opt {
             Some(slot) => {
-                if slot.generation == generation {
+                if slot.generation() == generation {
                     // Exact match, replace value
                     // 完全匹配，替换值
                     Some(std::mem::replace(&mut slot.value, value))
-                } else if slot.generation < generation {
+                } else if slot.generation() < generation {
                     // Stale slot (older generation), overwrite with new data
                     // 槽位过期（旧代数），用新数据覆盖
                     // Note: We don't return the old value because it belongs to a different entity (older gen)
-                    *slot = Slot { value, generation };
+                    *slot = Slot::new(value, generation);
                     None
                 } else {
                     // Incoming key is older than stored data, ignore insert
@@ -155,7 +175,7 @@ impl<T> SecondaryMap<T> {
             None => {
                 // Empty slot, insert new
                 // 空槽位，插入新值
-                *slot_opt = Some(Slot { value, generation });
+                *slot_opt = Some(Slot::new(value, generation));
                 self.num_elems += 1;
                 None
             }
@@ -169,16 +189,18 @@ impl<T> SecondaryMap<T> {
     /// 通过 Key 移除值
     ///
     /// 仅当索引和代数都匹配时才移除。
-    pub fn remove(&mut self, key: crate::Key) -> Option<T> {
+    pub fn remove(&mut self, key: K) -> Option<T> {
         #[cfg(debug_assertions)]
         if let Some(id) = self.map_id {
             debug_assert_eq!(
-                id, key.map_id,
+                id,
+                key.map_id(),
                 "Key used with wrong map instance in SecondaryMap"
             );
         }
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
         let index = index as usize;
 
         if unlikely(index >= self.slots.len()) {
@@ -188,7 +210,7 @@ impl<T> SecondaryMap<T> {
         let slot_opt = unsafe { self.slots.get_unchecked_mut(index) };
 
         if let Some(slot) = slot_opt {
-            if slot.generation == generation {
+            if slot.generation() == generation {
                 self.num_elems -= 1;
                 return slot_opt.take().map(|s| s.value);
             }
@@ -201,16 +223,18 @@ impl<T> SecondaryMap<T> {
     ///
     /// 通过 Key 获取值的引用
     #[inline]
-    pub fn get(&self, key: crate::Key) -> Option<&T> {
+    pub fn get(&self, key: K) -> Option<&T> {
         #[cfg(debug_assertions)]
         if let Some(id) = self.map_id {
             debug_assert_eq!(
-                id, key.map_id,
+                id,
+                key.map_id(),
                 "Key used with wrong map instance in SecondaryMap"
             );
         }
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
         let index = index as usize;
 
         if unlikely(index >= self.slots.len()) {
@@ -219,7 +243,7 @@ impl<T> SecondaryMap<T> {
 
         // SAFETY: Bounds checked above
         match unsafe { self.slots.get_unchecked(index) } {
-            Some(slot) if slot.generation == generation => Some(&slot.value),
+            Some(slot) if slot.generation() == generation => Some(&slot.value),
             _ => None,
         }
     }
@@ -228,16 +252,18 @@ impl<T> SecondaryMap<T> {
     ///
     /// 通过 Key 获取值的可变引用
     #[inline]
-    pub fn get_mut(&mut self, key: crate::Key) -> Option<&mut T> {
+    pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
         #[cfg(debug_assertions)]
         if let Some(id) = self.map_id {
             debug_assert_eq!(
-                id, key.map_id,
+                id,
+                key.map_id(),
                 "Key used with wrong map instance in SecondaryMap"
             );
         }
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
         let index = index as usize;
 
         if unlikely(index >= self.slots.len()) {
@@ -246,7 +272,7 @@ impl<T> SecondaryMap<T> {
 
         // SAFETY: Bounds checked above
         match unsafe { self.slots.get_unchecked_mut(index) } {
-            Some(slot) if slot.generation == generation => Some(&mut slot.value),
+            Some(slot) if slot.generation() == generation => Some(&mut slot.value),
             _ => None,
         }
     }
@@ -255,7 +281,7 @@ impl<T> SecondaryMap<T> {
     ///
     /// 检查 Key 是否存在
     #[inline]
-    pub fn contains_key(&self, key: crate::Key) -> bool {
+    pub fn contains_key(&self, key: K) -> bool {
         self.get(key).is_some()
     }
 
@@ -303,11 +329,11 @@ impl<T> SecondaryMap<T> {
     /// 只保留满足谓词的元素。
     pub fn retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(crate::Key, &mut T) -> bool,
+        F: FnMut(K, &mut T) -> bool,
     {
         for (index, slot_opt) in self.slots.iter_mut().enumerate() {
             if let Some(slot) = slot_opt {
-                let key = crate::Key::new(
+                let key = K::from_parts(
                     index as u32,
                     slot.generation,
                     #[cfg(debug_assertions)]
@@ -325,13 +351,13 @@ impl<T> SecondaryMap<T> {
     /// Iterator over all (key, value) pairs
     ///
     /// 遍历所有 (key, value) 对的迭代器
-    pub fn iter(&self) -> impl Iterator<Item = (crate::Key, &T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (K, &T)> {
         self.slots
             .iter()
             .enumerate()
             .filter_map(move |(index, slot_opt)| {
                 slot_opt.as_ref().map(|slot| {
-                    let key = crate::Key::new(
+                    let key = K::from_parts(
                         index as u32,
                         slot.generation,
                         #[cfg(debug_assertions)]
@@ -345,7 +371,7 @@ impl<T> SecondaryMap<T> {
     /// Mutable iterator over all (key, value) pairs
     ///
     /// 遍历所有 (key, value) 对的可变迭代器
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (crate::Key, &mut T)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (K, &mut T)> {
         #[cfg(debug_assertions)]
         let map_id = self.map_id;
 
@@ -354,7 +380,7 @@ impl<T> SecondaryMap<T> {
             .enumerate()
             .filter_map(move |(index, slot_opt)| {
                 slot_opt.as_mut().map(|slot| {
-                    let key = crate::Key::new(
+                    let key = K::from_parts(
                         index as u32,
                         slot.generation,
                         #[cfg(debug_assertions)]
@@ -369,5 +395,40 @@ impl<T> SecondaryMap<T> {
 impl<T: fmt::Debug> fmt::Debug for SecondaryMap<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_map().entries(self.iter()).finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::mem::size_of;
+
+    #[test]
+    fn test_slot_niche_optimization() {
+        // Slot<u32> layout:
+        // value: u32 (4 bytes)
+        // value: u32 (4 bytes)
+        // generation_p1: Generation (4 bytes)
+        // Total: 8 bytes
+        // Option<Slot<u32>>: Should be 8 bytes because strict NonZeroU32 allows 0 to be None.
+        assert_eq!(size_of::<Slot<u32>>(), 8);
+        assert_eq!(
+            size_of::<Option<Slot<u32>>>(),
+            8,
+            "Niche optimization failed for Slot<u32>"
+        );
+
+        // Slot<u64> layout:
+        // value: u64 (8 bytes)
+        // generation: Generation (4 bytes)
+        // padding: 4 bytes
+        // Total: 16 bytes. Alignment 8.
+        // Option<Slot<u64>>: Should use the niche in generation.
+        assert_eq!(size_of::<Slot<u64>>(), 16);
+        assert_eq!(
+            size_of::<Option<Slot<u64>>>(),
+            16,
+            "Niche optimization failed for Slot<u64>"
+        );
     }
 }

@@ -12,7 +12,7 @@ fn bench_insert(c: &mut Criterion) {
     for size in [100, 1000, 10000].iter() {
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, &size| {
             b.iter(|| {
-                let mut map = DeferredMap::new();
+                let mut map = DeferredMap::<usize>::new();
                 for i in 0..size {
                     let handle = map.allocate_handle();
                     map.insert(handle, black_box(i));
@@ -42,7 +42,7 @@ fn bench_preallocated_insert(c: &mut Criterion) {
     for size in [100, 1000, 10000].iter() {
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, &size| {
             b.iter(|| {
-                let mut map = DeferredMap::with_capacity(size);
+                let mut map = DeferredMap::<usize>::with_capacity(size);
                 for i in 0..size {
                     let handle = map.allocate_handle();
                     map.insert(handle, black_box(i));
@@ -71,7 +71,7 @@ fn bench_get(c: &mut Criterion) {
 
     for size in [100, 1000, 10000].iter() {
         // 准备 DeferredMap
-        let mut deferred_map = DeferredMap::new();
+        let mut deferred_map = DeferredMap::<usize>::new();
         let mut keys = Vec::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
@@ -116,7 +116,7 @@ fn bench_remove(c: &mut Criterion) {
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, &size| {
             b.iter_batched(
                 || {
-                    let mut map = DeferredMap::new();
+                    let mut map = DeferredMap::<usize>::new();
                     let mut keys = Vec::new();
                     for i in 0..size {
                         let handle = map.allocate_handle();
@@ -167,7 +167,7 @@ fn bench_iter(c: &mut Criterion) {
 
     for size in [100, 1000, 10000].iter() {
         // 准备 DeferredMap
-        let mut deferred_map = DeferredMap::new();
+        let mut deferred_map = DeferredMap::<usize>::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
             deferred_map.insert(handle, i);
@@ -210,7 +210,7 @@ fn bench_mixed_operations(c: &mut Criterion) {
     for size in [100, 1000, 10000].iter() {
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, &size| {
             b.iter(|| {
-                let mut map = DeferredMap::new();
+                let mut map = DeferredMap::<usize>::new();
                 let mut keys = Vec::new();
 
                 // 插入
@@ -282,7 +282,7 @@ fn bench_churn(c: &mut Criterion) {
     for size in [100, 1000, 10000].iter() {
         group.bench_with_input(BenchmarkId::new("DeferredMap", size), size, |b, &size| {
             b.iter(|| {
-                let mut map = DeferredMap::new();
+                let mut map = DeferredMap::<usize>::new();
 
                 // 预热：填充一半容量
                 let mut keys = Vec::new();
@@ -357,7 +357,7 @@ fn bench_deferred_insertion(c: &mut Criterion) {
             size,
             |b, &size| {
                 b.iter(|| {
-                    let mut map = DeferredMap::new();
+                    let mut map = DeferredMap::<usize>::new();
                     let mut handles = Vec::new();
 
                     // 第一阶段：分配所有 handles
@@ -382,7 +382,7 @@ fn bench_deferred_insertion(c: &mut Criterion) {
             size,
             |b, &size| {
                 b.iter(|| {
-                    let mut map = DeferredMap::new();
+                    let mut map = DeferredMap::<usize>::new();
                     for i in 0..size {
                         let handle = map.allocate_handle();
                         map.insert(handle, black_box(i));
@@ -417,7 +417,7 @@ fn bench_clone(c: &mut Criterion) {
 
     for size in [100, 1000, 10000].iter() {
         // 准备 DeferredMap
-        let mut deferred_map = DeferredMap::new();
+        let mut deferred_map = DeferredMap::<usize>::new();
         for i in 0..*size {
             let handle = deferred_map.allocate_handle();
             deferred_map.insert(handle, i);

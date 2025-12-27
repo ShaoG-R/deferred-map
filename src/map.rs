@@ -47,15 +47,17 @@ static NEXT_MAP_ID: AtomicU64 = AtomicU64::new(0);
 /// assert_eq!(map.remove(key), Some(42));
 /// ```
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct DeferredMap<T> {
+pub struct DeferredMap<T, K: crate::Key = crate::DefaultKey> {
     slots: Vec<Slot<T>>,
     free_head: u32, // Head of free list | 空闲列表的头部索引
     num_elems: u32, // Current element count | 当前元素数量
     #[cfg(debug_assertions)]
     map_id: u64,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    _marker: std::marker::PhantomData<K>,
 }
 
-impl<T> DeferredMap<T> {
+impl<T> DeferredMap<T, crate::DefaultKey> {
     /// Create a new empty DeferredMap
     ///
     /// 创建一个新的空 DeferredMap
@@ -72,7 +74,9 @@ impl<T> DeferredMap<T> {
     pub fn new() -> Self {
         Self::with_capacity(0)
     }
+}
 
+impl<T, K: crate::Key> DeferredMap<T, K> {
     /// Create a DeferredMap with specified capacity
     ///
     /// 创建一个指定容量的 DeferredMap
@@ -100,7 +104,7 @@ impl<T> DeferredMap<T> {
         let mut slots = Vec::with_capacity(capacity + 1);
         slots.push(Slot {
             u: SlotUnion { next_free: 0 },
-            version: 0,
+            version: crate::Version::sentinel(),
         });
 
         Self {
@@ -109,6 +113,7 @@ impl<T> DeferredMap<T> {
             num_elems: 0,
             #[cfg(debug_assertions)]
             map_id: NEXT_MAP_ID.fetch_add(1, Ordering::Relaxed),
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -139,7 +144,7 @@ impl<T> DeferredMap<T> {
     /// map.insert(handle, "value");
     /// assert_eq!(map.get(key), Some(&"value"));
     /// ```
-    pub fn allocate_handle(&mut self) -> Handle {
+    pub fn allocate_handle(&mut self) -> Handle<K> {
         if let Some(slot) = self.slots.get_mut(self.free_head as usize) {
             // Reuse existing vacant slot from free list
             // 从空闲列表中复用已有的空闲 slot
@@ -153,9 +158,9 @@ impl<T> DeferredMap<T> {
 
             // Transition: vacant(0bXX00) -> reserved(0bXX01)
             // 状态转换：vacant(0bXX00) -> reserved(0bXX01)
-            slot.version += 1;
+            slot.version.vacant_to_reserved();
 
-            let key = crate::Key::new(
+            let key = K::from_parts(
                 index,
                 slot.generation(),
                 #[cfg(debug_assertions)]
@@ -166,7 +171,7 @@ impl<T> DeferredMap<T> {
             // Need to extend Vec, allocate new slot
             // 需要扩展 Vec，分配新 slot
             let index = self.slots.len() as u32;
-            let version = 0b01; // New slot starts in reserved state | 新 slot 从 reserved 状态开始
+            let version = crate::Version::new(crate::Generation::MIN, 0b01); // New slot starts at Generation 1, reserved state | 新 slot 从 Generation 1 开始，reserved 状态
 
             // Create reserved slot
             // 创建 reserved slot
@@ -181,9 +186,9 @@ impl<T> DeferredMap<T> {
 
             // Extract generation from version (reserved state: 0b01)
             // 从 version 提取 generation（reserved 状态：0b01）
-            let key = crate::Key::new(
+            let key = K::from_parts(
                 index,
-                version >> 2,
+                version.generation(),
                 #[cfg(debug_assertions)]
                 self.map_id,
             );
@@ -220,10 +225,11 @@ impl<T> DeferredMap<T> {
     /// map.insert(handle, 42);
     /// assert_eq!(map.get(key), Some(&42));
     /// ```
-    pub fn insert(&mut self, handle: Handle, value: T) {
+    pub fn insert(&mut self, handle: Handle<K>, value: T) {
         #[cfg(debug_assertions)]
         debug_assert_eq!(
-            self.map_id, handle.key.map_id,
+            self.map_id,
+            handle.key.map_id(),
             "Handle used with wrong map instance"
         );
 
@@ -256,7 +262,7 @@ impl<T> DeferredMap<T> {
         // Insert value and transition: reserved(0bXX01) -> occupied(0bXX11)
         // 插入值并状态转换：reserved(0bXX01) -> occupied(0bXX11)
         slot.u.value = ManuallyDrop::new(value);
-        slot.version += 2; // 0bXX01 -> 0bXX11
+        slot.version.reserved_to_occupied(); // 0bXX01 -> 0bXX11
 
         self.num_elems += 1;
     }
@@ -291,11 +297,16 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(map.get(key), Some(&42));
     /// ```
     #[inline]
-    pub fn get(&self, key: crate::Key) -> Option<&T> {
+    pub fn get(&self, key: K) -> Option<&T> {
         #[cfg(debug_assertions)]
-        debug_assert_eq!(self.map_id, key.map_id, "Key used with wrong map instance");
+        debug_assert_eq!(
+            self.map_id,
+            key.map_id(),
+            "Key used with wrong map instance"
+        );
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
 
         // Bounds check
         // 边界检查
@@ -350,11 +361,16 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(map.get(key), Some(&100));
     /// ```
     #[inline]
-    pub fn get_mut(&mut self, key: crate::Key) -> Option<&mut T> {
+    pub fn get_mut(&mut self, key: K) -> Option<&mut T> {
         #[cfg(debug_assertions)]
-        debug_assert_eq!(self.map_id, key.map_id, "Key used with wrong map instance");
+        debug_assert_eq!(
+            self.map_id,
+            key.map_id(),
+            "Key used with wrong map instance"
+        );
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
 
         // Bounds check
         // 边界检查
@@ -411,11 +427,16 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(map.get(key), None);
     /// ```
     #[inline]
-    pub fn remove(&mut self, key: crate::Key) -> Option<T> {
+    pub fn remove(&mut self, key: K) -> Option<T> {
         #[cfg(debug_assertions)]
-        debug_assert_eq!(self.map_id, key.map_id, "Key used with wrong map instance");
+        debug_assert_eq!(
+            self.map_id,
+            key.map_id(),
+            "Key used with wrong map instance"
+        );
 
-        let (index, generation) = key.decode();
+        let index = key.index();
+        let generation = key.generation();
 
         // Bounds check
         // 边界检查
@@ -440,7 +461,7 @@ impl<T> DeferredMap<T> {
 
             // Transition: occupied(0bXX11) -> vacant(0bYY00, next generation)
             // 状态转换：occupied(0bXX11) -> vacant(0bYY00，下一代）
-            slot.version = slot.version.wrapping_add(1); // 0bXX11 -> 0bYY00
+            slot.version.occupied_to_vacant();
 
             self.num_elems -= 1;
             Some(value)
@@ -477,10 +498,11 @@ impl<T> DeferredMap<T> {
     /// // 决定不使用它
     /// map.release_handle(handle);
     /// ```
-    pub fn release_handle(&mut self, handle: Handle) {
+    pub fn release_handle(&mut self, handle: Handle<K>) {
         #[cfg(debug_assertions)]
         debug_assert_eq!(
-            self.map_id, handle.key.map_id,
+            self.map_id,
+            handle.key.map_id(),
             "Handle used with wrong map instance"
         );
 
@@ -518,7 +540,7 @@ impl<T> DeferredMap<T> {
 
         // Transition: reserved(0bXX01) -> vacant(0bYY00, next generation)
         // 状态转换：reserved(0bXX01) -> vacant(0bYY00，下一代）
-        slot.version = slot.version.wrapping_add(3); // 0bXX01 + 3 = 0bYY00
+        slot.version.reserved_to_vacant();
     }
 
     /// Check if key exists
@@ -552,7 +574,7 @@ impl<T> DeferredMap<T> {
     /// assert!(!map.contains_key(key));
     /// ```
     #[inline]
-    pub fn contains_key(&self, key: crate::Key) -> bool {
+    pub fn contains_key(&self, key: K) -> bool {
         self.get(key).is_some()
     }
 
@@ -636,7 +658,7 @@ impl<T> DeferredMap<T> {
         // 重新添加 sentinel
         self.slots.push(Slot {
             u: SlotUnion { next_free: 0 },
-            version: 0,
+            version: crate::Version::sentinel(),
         });
         self.free_head = 1;
         self.num_elems = 0;
@@ -663,14 +685,14 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(sum, 3);
     /// ```
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = (crate::Key, &T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (K, &T)> {
         self.slots
             .iter()
             .enumerate()
             .skip(1)
             .filter_map(|(index, slot)| {
                 if let Occupied(value) = slot.get() {
-                    let key = crate::Key::new(
+                    let key = K::from_parts(
                         index as u32,
                         slot.generation(),
                         #[cfg(debug_assertions)]
@@ -708,7 +730,7 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(sum, 6);
     /// ```
     #[inline]
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (crate::Key, &mut T)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (K, &mut T)> {
         // We need to capture map_id for the closure
         #[cfg(debug_assertions)]
         let map_id = self.map_id;
@@ -720,7 +742,7 @@ impl<T> DeferredMap<T> {
             .filter_map(move |(index, slot)| {
                 let generation = slot.generation();
                 if let OccupiedMut(value) = slot.get_mut() {
-                    let key = crate::Key::new(
+                    let key = K::from_parts(
                         index as u32,
                         generation,
                         #[cfg(debug_assertions)]
@@ -774,7 +796,7 @@ impl<T> DeferredMap<T> {
     /// - `f`: 谓词函数。
     pub fn retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(crate::Key, &mut T) -> bool,
+        F: FnMut(K, &mut T) -> bool,
     {
         // Iterate over all slots skipping sentinel at index 0
         // 遍历所有 slot，跳过索引 0 的 sentinel
@@ -788,7 +810,7 @@ impl<T> DeferredMap<T> {
             // Reserved (等待插入) 和 Vacant 的 slot 被忽略。
             if slot.is_occupied() {
                 let generation = slot.generation();
-                let key = crate::Key::new(
+                let key = K::from_parts(
                     i as u32,
                     generation,
                     #[cfg(debug_assertions)]
@@ -812,7 +834,7 @@ impl<T> DeferredMap<T> {
                     // 3. Update version: Occupied(0b11) -> Vacant(0b00) of NEXT generation
                     // Incrementing by 1 changes 0b...11 to 0b...00 (next gen due to carry)
                     // 状态转换：Occupied -> Vacant（下一代）
-                    slot.version = slot.version.wrapping_add(1);
+                    slot.version.occupied_to_vacant();
 
                     self.num_elems -= 1;
                 }
@@ -821,7 +843,7 @@ impl<T> DeferredMap<T> {
     }
 }
 
-impl<T: Clone> Clone for DeferredMap<T> {
+impl<T: Clone, K: crate::Key> Clone for DeferredMap<T, K> {
     #[inline]
     fn clone(&self) -> Self {
         Self {
@@ -830,6 +852,7 @@ impl<T: Clone> Clone for DeferredMap<T> {
             num_elems: self.num_elems,
             #[cfg(debug_assertions)]
             map_id: NEXT_MAP_ID.fetch_add(1, Ordering::Relaxed),
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -1041,7 +1064,7 @@ mod basic_tests {
 
         // encode_key uses generation (32 bits), not version (which includes state bits)
         // encode_key 使用 generation（32 位），而不是 version（包含状态位）
-        let expected_key = crate::Key::new(
+        let expected_key = crate::DefaultKey::new(
             index,
             generation,
             #[cfg(debug_assertions)]

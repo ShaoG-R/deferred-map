@@ -20,16 +20,16 @@
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct Handle {
-    pub(crate) key: crate::Key,
+pub struct Handle<K: crate::Key = crate::DefaultKey> {
+    pub(crate) key: K,
 }
 
-impl Handle {
+impl<K: crate::Key> Handle<K> {
     /// Create a new Handle (internal use)
     ///
     /// 创建一个新的 Handle（内部使用）
     #[inline(always)]
-    pub(crate) fn new(key: crate::Key) -> Self {
+    pub(crate) fn new(key: K) -> Self {
         Self { key }
     }
 
@@ -41,7 +41,7 @@ impl Handle {
     ///
     /// 这与 raw_value() 相同，但名称更具语义性
     #[inline(always)]
-    pub fn key(&self) -> crate::Key {
+    pub fn key(&self) -> K {
         self.key
     }
 
@@ -56,7 +56,7 @@ impl Handle {
     ///
     /// 提取 generation（高 32 位）
     #[inline(always)]
-    pub fn generation(&self) -> u32 {
+    pub fn generation(&self) -> crate::Generation {
         self.key.generation()
     }
 }

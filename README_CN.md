@@ -36,7 +36,7 @@
 
 ```toml
 [dependencies]
-deferred-map = "0.2"
+deferred-map = "0.3"
 ```
 
 ## 快速开始
@@ -98,11 +98,11 @@ assert_eq!(map.get(key), None);
 ### 构建自引用结构
 
 ```rust
-use deferred_map::DeferredMap;
+use deferred_map::{DeferredMap, DefaultKey};
 
 struct Node {
     value: i32,
-    next: Option<u64>, // 指向下一个节点的键
+    next: Option<DefaultKey>, // 指向下一个节点的键
 }
 
 let mut graph = DeferredMap::new();
@@ -138,7 +138,7 @@ for i in 0..5 {
 
 // 遍历所有条目
 for (key, value) in map.iter() {
-    println!("键: {}, 值: {}", key, value);
+    println!("键: {:?}, 值: {}", key, value);
 }
 
 // 可变迭代
@@ -198,13 +198,21 @@ sec.insert(k2, 200);
 assert_eq!(sec.get(k2), Some(&200));
 ```
 
+更多完整的示例可以在 `examples/` 目录下找到。
+
+运行示例：
+
+```bash
+cargo run --example basic
+cargo run --example secondary
+```
+
 ## API 概览
 
 ### 核心类型
 
 - **`DeferredMap<T>`**：主映射结构
 - **`Handle`**：用于延迟插入的一次性令牌（不可克隆）
-- **`DeferredMapError`**：句柄操作的错误类型
 
 ### 主要方法
 
@@ -226,7 +234,7 @@ release_handle(&mut self, handle: Handle)
 #### Handle 方法
 
 ```rust
-handle.key() -> u64           // 获取键（在插入前）
+handle.key() -> K             // 获取键（在插入前）
 handle.index() -> u32         // 获取索引部分
 handle.generation() -> u32    // 获取代数部分
 ```
@@ -234,10 +242,10 @@ handle.generation() -> u32    // 获取代数部分
 #### 值访问
 
 ```rust
-get(&self, key: u64) -> Option<&T>
-get_mut(&mut self, key: u64) -> Option<&mut T>
-remove(&mut self, key: u64) -> Option<T>
-contains_key(&self, key: u64) -> bool
+get(&self, key: K) -> Option<&T>
+get_mut(&mut self, key: K) -> Option<&mut T>
+remove(&mut self, key: K) -> Option<T>
+contains_key(&self, key: K) -> bool
 ```
 
 #### 元数据与迭代
@@ -247,8 +255,8 @@ len(&self) -> usize
 is_empty(&self) -> bool
 capacity(&self) -> usize
 clear(&mut self)
-iter(&self) -> impl Iterator<Item = (u64, &T)>
-iter_mut(&mut self) -> impl Iterator<Item = (u64, &mut T)>
+iter(&self) -> impl Iterator<Item = (K, &T)>
+iter_mut(&mut self) -> impl Iterator<Item = (K, &mut T)>
 ```
 
 ## 工作原理

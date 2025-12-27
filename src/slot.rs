@@ -24,7 +24,7 @@ pub(crate) union SlotUnion<T> {
 /// 高 30 位为代数计数器
 pub(crate) struct Slot<T> {
     pub(crate) u: SlotUnion<T>,
-    pub(crate) version: u32, // Low 2 bits: state, High 30 bits: generation | 低2位：状态，高30位：代数
+    pub(crate) version: crate::Version, // Low 2 bits: state, High 30 bits: generation | 低2位：状态，高30位：代数
 }
 
 /// Safe API to read slot content
@@ -65,17 +65,9 @@ impl<T> Slot<T> {
     ///
     /// 获取状态位（version 的最低 2 位）
     #[inline(always)]
-    fn state_bits(&self) -> u32 {
-        self.version & 0b11
-    }
-
-    /// Check if slot is vacant (state bits == 0b00)
-    ///
-    /// 检查 slot 是否空闲（状态位 == 0b00）
-    #[inline(always)]
     #[allow(unused)]
     pub(crate) fn is_vacant(&self) -> bool {
-        self.state_bits() == 0b00
+        self.version.is_vacant()
     }
 
     /// Check if slot is reserved (state bits == 0b01)
@@ -83,7 +75,7 @@ impl<T> Slot<T> {
     /// 检查 slot 是否已预留（状态位 == 0b01）
     #[inline(always)]
     pub(crate) fn is_reserved(&self) -> bool {
-        self.state_bits() == 0b01
+        self.version.is_reserved()
     }
 
     /// Check if slot is occupied (state bits == 0b11)
@@ -91,15 +83,15 @@ impl<T> Slot<T> {
     /// 检查 slot 是否被占用（状态位 == 0b11）
     #[inline(always)]
     pub(crate) fn is_occupied(&self) -> bool {
-        self.state_bits() == 0b11
+        self.version.is_occupied()
     }
 
     /// Get the generation from version (excludes state bits)
     ///
     /// 从 version 中获取 generation（不包含状态位）
     #[inline(always)]
-    pub(crate) fn generation(&self) -> u32 {
-        self.version >> 2
+    pub(crate) fn generation(&self) -> crate::Generation {
+        self.version.generation()
     }
 
     /// Safely get slot content
@@ -276,7 +268,12 @@ impl<'de, T: serde::Deserialize<'de>> serde::Deserialize<'de> for Slot<T> {
 
         Ok(Slot {
             u,
-            version: helper.version,
+            version: crate::Version::new(
+                unsafe {
+                    crate::Generation::new(std::num::NonZeroU32::new_unchecked(helper.version >> 2))
+                },
+                helper.version & 0b11,
+            ),
         })
     }
 }
@@ -291,7 +288,10 @@ mod tests {
             u: SlotUnion {
                 value: ManuallyDrop::new(42),
             },
-            version: 0b11 | (1 << 2), // Occupied, generation 1
+            version: crate::Version::new(
+                unsafe { crate::Generation::new(std::num::NonZeroU32::new_unchecked(1)) },
+                0b11,
+            ),
         };
 
         let serialized = serde_json::to_string(&slot).expect("Failed to serialize");
@@ -299,7 +299,7 @@ mod tests {
             serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert!(deserialized.is_occupied());
-        assert_eq!(deserialized.generation(), 1);
+        assert_eq!(deserialized.generation().get(), 1);
         if let Occupied(val) = deserialized.get() {
             assert_eq!(*val, 42);
         } else {
@@ -311,7 +311,10 @@ mod tests {
     fn test_slot_vacant_serde() {
         let slot: Slot<i32> = Slot {
             u: SlotUnion { next_free: 10 },
-            version: 0b00 | (2 << 2), // Vacant, generation 2
+            version: crate::Version::new(
+                unsafe { crate::Generation::new(std::num::NonZeroU32::new_unchecked(2)) },
+                0b00,
+            ),
         };
 
         let serialized = serde_json::to_string(&slot).expect("Failed to serialize");
@@ -319,7 +322,7 @@ mod tests {
             serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert!(deserialized.is_vacant());
-        assert_eq!(deserialized.generation(), 2);
+        assert_eq!(deserialized.generation().get(), 2);
         if let Vacant(next) = deserialized.get() {
             assert_eq!(*next, 10);
         } else {
@@ -331,7 +334,10 @@ mod tests {
     fn test_slot_reserved_serde() {
         let slot: Slot<i32> = Slot {
             u: SlotUnion { next_free: 0 },
-            version: 0b01 | (3 << 2), // Reserved, generation 3
+            version: crate::Version::new(
+                unsafe { crate::Generation::new(std::num::NonZeroU32::new_unchecked(3)) },
+                0b01,
+            ),
         };
 
         let serialized = serde_json::to_string(&slot).expect("Failed to serialize");
@@ -339,6 +345,6 @@ mod tests {
             serde_json::from_str(&serialized).expect("Failed to deserialize");
 
         assert!(deserialized.is_reserved());
-        assert_eq!(deserialized.generation(), 3);
+        assert_eq!(deserialized.generation().get(), 3);
     }
 }

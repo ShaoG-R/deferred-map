@@ -1,7 +1,7 @@
 // Removal and slot recycling comprehensive tests
 // 删除和槽位回收的全面测试
 
-use crate::DeferredMap;
+use crate::{DeferredMap, Key};
 
 #[test]
 fn test_basic_removal() {
@@ -121,7 +121,7 @@ fn test_removal_increments_generation() {
 
     // Generation (high 30 bits) should increment by 1
     // Generation（高 30 位）应该递增 1
-    assert_eq!(gen2, gen1 + 1);
+    assert_eq!(gen2.get(), gen1.get() + 1);
 }
 
 #[test]

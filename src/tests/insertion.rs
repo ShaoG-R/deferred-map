@@ -1,7 +1,7 @@
 // Insertion operation comprehensive tests
 // 插入操作的全面测试
 
-use crate::DeferredMap;
+use crate::{DeferredMap, Key};
 
 #[test]
 fn test_basic_insertion() {
@@ -148,7 +148,7 @@ fn test_insertion_after_removal_reuses_slot() {
 
 #[test]
 fn test_insertion_with_preallocated_capacity() {
-    let mut map = DeferredMap::with_capacity(100);
+    let mut map: DeferredMap<i32> = DeferredMap::with_capacity(100);
 
     // Insert elements without extending Vec
     // 插入元素而不扩展 Vec

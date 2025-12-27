@@ -36,7 +36,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-deferred-map = "0.2"
+deferred-map = "0.3"
 ```
 
 ## Quick Start
@@ -98,11 +98,11 @@ assert_eq!(map.get(key), None);
 ### Building Self-Referential Structures
 
 ```rust
-use deferred_map::DeferredMap;
+use deferred_map::{DeferredMap, DefaultKey};
 
 struct Node {
     value: i32,
-    next: Option<u64>, // Key to next node
+    next: Option<DefaultKey>, // Key to next node
 }
 
 let mut graph = DeferredMap::new();
@@ -138,7 +138,7 @@ for i in 0..5 {
 
 // Iterate over all entries
 for (key, value) in map.iter() {
-    println!("Key: {}, Value: {}", key, value);
+    println!("Key: {:?}, Value: {}", key, value);
 }
 
 // Mutable iteration
@@ -198,13 +198,21 @@ sec.insert(k2, 200);
 assert_eq!(sec.get(k2), Some(&200));
 ```
 
+You can find more complete examples in the `examples/` directory.
+
+To run the examples:
+
+```bash
+cargo run --example basic
+cargo run --example secondary
+```
+
 ## API Overview
 
 ### Core Types
 
 - **`DeferredMap<T>`**: The main map structure
 - **`Handle`**: A one-time token for deferred insertion (cannot be cloned)
-- **`DeferredMapError`**: Error types for handle operations
 
 ### Main Methods
 
@@ -226,7 +234,7 @@ release_handle(&mut self, handle: Handle)
 #### Handle Methods
 
 ```rust
-handle.key() -> u64           // Get the key (before insertion)
+handle.key() -> K             // Get the key (before insertion)
 handle.index() -> u32         // Get the index part
 handle.generation() -> u32    // Get the generation part
 ```
@@ -234,10 +242,10 @@ handle.generation() -> u32    // Get the generation part
 #### Value Access
 
 ```rust
-get(&self, key: u64) -> Option<&T>
-get_mut(&mut self, key: u64) -> Option<&mut T>
-remove(&mut self, key: u64) -> Option<T>
-contains_key(&self, key: u64) -> bool
+get(&self, key: K) -> Option<&T>
+get_mut(&mut self, key: K) -> Option<&mut T>
+remove(&mut self, key: K) -> Option<T>
+contains_key(&self, key: K) -> bool
 ```
 
 #### Metadata & Iteration
@@ -247,8 +255,8 @@ len(&self) -> usize
 is_empty(&self) -> bool
 capacity(&self) -> usize
 clear(&mut self)
-iter(&self) -> impl Iterator<Item = (u64, &T)>
-iter_mut(&mut self) -> impl Iterator<Item = (u64, &mut T)>
+iter(&self) -> impl Iterator<Item = (K, &T)>
+iter_mut(&mut self) -> impl Iterator<Item = (K, &mut T)>
 ```
 
 ## How It Works
