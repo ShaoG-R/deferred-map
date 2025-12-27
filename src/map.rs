@@ -89,7 +89,7 @@ impl<T> DeferredMap<T> {
     /// use deferred_map::DeferredMap;
     ///
     /// let map: DeferredMap<i32> = DeferredMap::with_capacity(100);
-    /// assert_eq!(map.capacity(), 0);
+    /// assert!(map.capacity() >= 100);
     /// ```
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
@@ -593,13 +593,13 @@ impl<T> DeferredMap<T> {
     /// use deferred_map::DeferredMap;
     ///
     /// let map: DeferredMap<i32> = DeferredMap::with_capacity(10);
-    /// assert_eq!(map.capacity(), 0);
+    /// assert!(map.capacity() >= 10);
     /// ```
     #[inline]
     pub fn capacity(&self) -> usize {
         // Subtract sentinel slot
         // 减去 sentinel slot
-        self.slots.len().saturating_sub(1)
+        self.slots.capacity().saturating_sub(1)
     }
 
     /// Clear all elements
@@ -706,6 +706,88 @@ impl<T> DeferredMap<T> {
                     None
                 }
             })
+    }
+    /// Reserves capacity for at least `additional` more elements to be inserted in the map.
+    /// The map may reserve more space to speculatively avoid frequent reallocations.
+    ///
+    /// 预留至少能容纳 `additional` 个额外元素的空间。
+    /// Map 可能会预留更多空间以避免频繁的重新分配。
+    ///
+    /// # Parameters
+    /// - `additional`: The number of additional elements to reserve space for.
+    ///
+    /// # 参数
+    /// - `additional`: 需要预留的额外元素数量。
+    #[inline]
+    pub fn reserve(&mut self, additional: usize) {
+        self.slots.reserve(additional);
+    }
+
+    /// Shrinks the capacity of the map as much as possible.
+    /// It will drop down as close as possible to the length (number of slots used + free slots).
+    ///
+    /// 尽可能缩小 map 的容量。
+    /// 容量会尽可能降低到接近当前的长度（包含已使用和位于空闲列表中的 slot）。
+    #[inline]
+    pub fn shrink_to_fit(&mut self) {
+        self.slots.shrink_to_fit();
+    }
+
+    /// Retains only the elements specified by the predicate.
+    ///
+    /// In other words, remove all pairs `(k, v)` for which `f(k, v)` returns `false`.
+    /// The elements are visited in unsorted (internal) order.
+    ///
+    /// 只保留满足谓词的元素。
+    /// 换句话说，移除所有 `f(k, v)` 返回 `false` 的 `(k, v)` 对。
+    /// 元素按未排序（内部）顺序访问。
+    ///
+    /// # Parameters
+    /// - `f`: The predicate function.
+    ///
+    /// # 参数
+    /// - `f`: 谓词函数。
+    pub fn retain<F>(&mut self, mut f: F)
+    where
+        F: FnMut(u64, &mut T) -> bool,
+    {
+        // Iterate over all slots skipping sentinel at index 0
+        // 遍历所有 slot，跳过索引 0 的 sentinel
+        for i in 1..self.slots.len() {
+            // SAFETY: Access is bounded by slots.len()
+            let slot = unsafe { self.slots.get_unchecked_mut(i) };
+
+            // Only process Occupied slots.
+            // Reserved slots (waiting for insert) and Vacant slots are ignored.
+            // 只处理 Occupied 的 slot。
+            // Reserved (等待插入) 和 Vacant 的 slot 被忽略。
+            if slot.is_occupied() {
+                let generation = slot.generation();
+                let key = encode_key(i as u32, generation);
+
+                // SAFETY: We checked is_occupied()
+                let value = unsafe { &mut *slot.u.value };
+
+                if !f(key, value) {
+                    // Predicate returned false, remove the element.
+                    // 谓词返回 false，移除该元素。
+
+                    // 1. Drop the value
+                    unsafe { ManuallyDrop::drop(&mut slot.u.value) };
+
+                    // 2. Add to free list (LIFO insert to head)
+                    slot.u.next_free = self.free_head;
+                    self.free_head = i as u32;
+
+                    // 3. Update version: Occupied(0b11) -> Vacant(0b00) of NEXT generation
+                    // Incrementing by 1 changes 0b...11 to 0b...00 (next gen due to carry)
+                    // 状态转换：Occupied -> Vacant（下一代）
+                    slot.version = slot.version.wrapping_add(1);
+
+                    self.num_elems -= 1;
+                }
+            }
+        }
     }
 }
 
@@ -855,7 +937,7 @@ mod basic_tests {
         }
 
         assert_eq!(map.len(), 5);
-        assert_eq!(map.capacity(), 5);
+        assert!(map.capacity() >= 5);
     }
 
     #[test]
@@ -872,7 +954,9 @@ mod basic_tests {
         map.clear();
 
         assert_eq!(map.len(), 0);
-        assert_eq!(map.capacity(), 0);
+        // Capacity is preserved after clear
+        // clear 后容量保留
+        assert!(map.capacity() >= 5);
         assert!(map.is_empty());
     }
 

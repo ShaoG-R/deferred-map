@@ -423,7 +423,7 @@ fn test_release_handle_with_capacity_check() {
 
     // Capacity should have grown
     // 容量应该增长了
-    assert_eq!(map.capacity(), 10);
+    assert!(map.capacity() >= 10);
 
     // Now release all of them
     // 现在全部释放
@@ -433,7 +433,7 @@ fn test_release_handle_with_capacity_check() {
 
     // Capacity should remain
     // 容量应该保持
-    assert_eq!(map.capacity(), 10);
+    assert!(map.capacity() >= 10);
 
     // But map should still be empty
     // 但 map 应该仍然为空

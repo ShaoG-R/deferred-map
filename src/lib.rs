@@ -14,5 +14,6 @@ mod tests {
     mod edge_cases;
     mod handle;
     mod insertion;
+    mod new_features;
     mod removal;
 }
