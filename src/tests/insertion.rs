@@ -84,7 +84,7 @@ fn test_insertion_returns_correct_key() {
 
     // The key should have the same index as the handle
     // key 应该与 handle 有相同的 index
-    let key_index = handle_key as u32;
+    let key_index = handle_key.index();
     assert_eq!(key_index, handle_index);
 
     // Verify the value is accessible with the key
@@ -124,7 +124,7 @@ fn test_insertion_after_removal_reuses_slot() {
     let h1 = map.allocate_handle();
     let k1 = h1.key();
     map.insert(h1, 42);
-    let index1 = k1 as u32;
+    let index1 = k1.index();
 
     // Remove to free the slot
     // 移除以释放 slot
@@ -135,7 +135,7 @@ fn test_insertion_after_removal_reuses_slot() {
     let h2 = map.allocate_handle();
     let k2 = h2.key();
     map.insert(h2, 100);
-    let index2 = k2 as u32;
+    let index2 = k2.index();
 
     // Should reuse the same index
     // 应该复用相同的索引

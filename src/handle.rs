@@ -21,9 +21,7 @@
 #[derive(Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Handle {
-    key: u64, // The key of the handle
-    #[cfg(debug_assertions)]
-    pub(crate) map_id: u64,
+    pub(crate) key: crate::Key,
 }
 
 impl Handle {
@@ -31,12 +29,8 @@ impl Handle {
     ///
     /// 创建一个新的 Handle（内部使用）
     #[inline(always)]
-    pub(crate) fn new(key: u64, #[cfg(debug_assertions)] map_id: u64) -> Self {
-        Self {
-            key,
-            #[cfg(debug_assertions)]
-            map_id,
-        }
+    pub(crate) fn new(key: crate::Key) -> Self {
+        Self { key }
     }
 
     /// Get the key that will be used for this handle
@@ -47,7 +41,7 @@ impl Handle {
     ///
     /// 这与 raw_value() 相同，但名称更具语义性
     #[inline(always)]
-    pub fn key(&self) -> u64 {
+    pub fn key(&self) -> crate::Key {
         self.key
     }
 
@@ -56,13 +50,13 @@ impl Handle {
     /// 提取 index（低 32 位）
     #[inline(always)]
     pub fn index(&self) -> u32 {
-        self.key as u32
+        self.key.index()
     }
     /// Extract generation (upper 32 bits)
     ///
     /// 提取 generation（高 32 位）
     #[inline(always)]
     pub fn generation(&self) -> u32 {
-        (self.key >> 32) as u32
+        self.key.generation()
     }
 }

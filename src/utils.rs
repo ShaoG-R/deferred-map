@@ -62,21 +62,3 @@ pub(crate) fn unlikely(b: bool) -> bool {
     }
     b
 }
-
-/// Encode index and generation into u64
-///
-/// 从 index 和 generation 编码为 u64
-#[inline(always)]
-pub fn encode_key(index: u32, generation: u32) -> u64 {
-    ((generation as u64) << 32) | (index as u64)
-}
-
-/// Decode u64 into index and generation
-///
-/// 从 u64 解码为 index 和 generation
-#[inline(always)]
-pub fn decode_key(key: u64) -> (u32, u32) {
-    let index = key as u32;
-    let generation = (key >> 32) as u32;
-    (index, generation)
-}

@@ -9,7 +9,7 @@ fn test_handle_key() {
     let handle = map.allocate_handle();
 
     let key = handle.key();
-    assert!(key > 0);
+    assert!(key.index() > 0);
 }
 
 #[test]
@@ -45,11 +45,11 @@ fn test_handle_encoding_consistency() {
 
     // Verify index extraction
     // 验证 index 提取
-    assert_eq!(key & 0xFFFFFFFF, index as u64);
+    assert_eq!(key.index() as u64, index as u64);
 
-    // Verify generation extraction (upper 30 bits of upper 32 bits)
-    // 验证 generation 提取（高 32 位中的高 30 位）
-    assert_eq!((key >> 34), generation as u64);
+    // Verify generation extraction
+    // 验证 generation 提取
+    assert_eq!(key.generation(), generation);
 }
 
 #[test]
@@ -133,9 +133,6 @@ fn test_handle_equality() {
     // Create handle with same key value
     // 使用相同的 key 值创建 handle
     let key = handle1.key();
-    #[cfg(debug_assertions)]
-    let handle3 = Handle::new(key, handle1.map_id);
-    #[cfg(not(debug_assertions))]
     let handle3 = Handle::new(key);
     assert_eq!(handle1, handle3);
 }
@@ -203,8 +200,11 @@ fn test_handle_with_max_index() {
     let generation = 1u32;
     let key = (generation as u64) << 32 | max_index as u64;
     #[cfg(debug_assertions)]
-    let handle = Handle::new(key, 0);
-    #[cfg(not(debug_assertions))]
+    let key = crate::Key {
+        raw: key,
+        #[cfg(debug_assertions)]
+        map_id: 0,
+    };
     let handle = Handle::new(key);
 
     assert_eq!(handle.index(), max_index);
@@ -219,8 +219,11 @@ fn test_handle_with_max_generation() {
     let max_generation = u32::MAX; // Now generation is full 32 bits
     let key = (max_generation as u64) << 32 | index as u64;
     #[cfg(debug_assertions)]
-    let handle = Handle::new(key, 0);
-    #[cfg(not(debug_assertions))]
+    let key = crate::Key {
+        raw: key,
+        #[cfg(debug_assertions)]
+        map_id: 0,
+    };
     let handle = Handle::new(key);
 
     assert_eq!(handle.index(), index);

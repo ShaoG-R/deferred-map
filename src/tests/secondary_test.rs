@@ -153,7 +153,8 @@ fn test_iterators() {
     sec.insert(k2, 200);
 
     // Iter
-    let pairs: std::collections::HashMap<u64, i32> = sec.iter().map(|(k, v)| (k, *v)).collect();
+    let pairs: std::collections::HashMap<crate::Key, i32> =
+        sec.iter().map(|(k, v)| (k, *v)).collect();
     assert_eq!(pairs.len(), 2);
     assert_eq!(pairs.get(&k1), Some(&100));
     assert_eq!(pairs.get(&k2), Some(&200));

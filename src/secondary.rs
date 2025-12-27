@@ -1,4 +1,4 @@
-use crate::utils::{decode_key, encode_key, unlikely};
+use crate::utils::unlikely;
 use std::fmt;
 
 /// Internal slot storage for SecondaryMap.
@@ -58,6 +58,8 @@ pub struct SecondaryMap<T> {
     // Even if Some is present, we must check generation matching.
     slots: Vec<Option<Slot<T>>>,
     num_elems: usize,
+    #[cfg(debug_assertions)]
+    map_id: Option<u64>,
 }
 
 impl<T> Default for SecondaryMap<T> {
@@ -75,6 +77,8 @@ impl<T> SecondaryMap<T> {
         Self {
             slots: Vec::new(),
             num_elems: 0,
+            #[cfg(debug_assertions)]
+            map_id: None,
         }
     }
 
@@ -86,6 +90,8 @@ impl<T> SecondaryMap<T> {
         Self {
             slots: Vec::with_capacity(capacity),
             num_elems: 0,
+            #[cfg(debug_assertions)]
+            map_id: None,
         }
     }
 
@@ -102,8 +108,20 @@ impl<T> SecondaryMap<T> {
     /// # Returns
     /// - `Some(old_value)` if a value existed for the EXACT same key (same index and generation).
     /// - `None` otherwise.
-    pub fn insert(&mut self, key: u64, value: T) -> Option<T> {
-        let (index, generation) = decode_key(key);
+    pub fn insert(&mut self, key: crate::Key, value: T) -> Option<T> {
+        #[cfg(debug_assertions)]
+        {
+            if let Some(id) = self.map_id {
+                debug_assert_eq!(
+                    id, key.map_id,
+                    "Key used with wrong map instance in SecondaryMap"
+                );
+            } else {
+                self.map_id = Some(key.map_id);
+            }
+        }
+
+        let (index, generation) = key.decode();
         let index = index as usize;
 
         // Ensure we have enough slots
@@ -151,8 +169,16 @@ impl<T> SecondaryMap<T> {
     /// 通过 Key 移除值
     ///
     /// 仅当索引和代数都匹配时才移除。
-    pub fn remove(&mut self, key: u64) -> Option<T> {
-        let (index, generation) = decode_key(key);
+    pub fn remove(&mut self, key: crate::Key) -> Option<T> {
+        #[cfg(debug_assertions)]
+        if let Some(id) = self.map_id {
+            debug_assert_eq!(
+                id, key.map_id,
+                "Key used with wrong map instance in SecondaryMap"
+            );
+        }
+
+        let (index, generation) = key.decode();
         let index = index as usize;
 
         if unlikely(index >= self.slots.len()) {
@@ -175,8 +201,16 @@ impl<T> SecondaryMap<T> {
     ///
     /// 通过 Key 获取值的引用
     #[inline]
-    pub fn get(&self, key: u64) -> Option<&T> {
-        let (index, generation) = decode_key(key);
+    pub fn get(&self, key: crate::Key) -> Option<&T> {
+        #[cfg(debug_assertions)]
+        if let Some(id) = self.map_id {
+            debug_assert_eq!(
+                id, key.map_id,
+                "Key used with wrong map instance in SecondaryMap"
+            );
+        }
+
+        let (index, generation) = key.decode();
         let index = index as usize;
 
         if unlikely(index >= self.slots.len()) {
@@ -194,8 +228,16 @@ impl<T> SecondaryMap<T> {
     ///
     /// 通过 Key 获取值的可变引用
     #[inline]
-    pub fn get_mut(&mut self, key: u64) -> Option<&mut T> {
-        let (index, generation) = decode_key(key);
+    pub fn get_mut(&mut self, key: crate::Key) -> Option<&mut T> {
+        #[cfg(debug_assertions)]
+        if let Some(id) = self.map_id {
+            debug_assert_eq!(
+                id, key.map_id,
+                "Key used with wrong map instance in SecondaryMap"
+            );
+        }
+
+        let (index, generation) = key.decode();
         let index = index as usize;
 
         if unlikely(index >= self.slots.len()) {
@@ -213,7 +255,7 @@ impl<T> SecondaryMap<T> {
     ///
     /// 检查 Key 是否存在
     #[inline]
-    pub fn contains_key(&self, key: u64) -> bool {
+    pub fn contains_key(&self, key: crate::Key) -> bool {
         self.get(key).is_some()
     }
 
@@ -250,6 +292,10 @@ impl<T> SecondaryMap<T> {
     pub fn clear(&mut self) {
         self.slots.clear();
         self.num_elems = 0;
+        #[cfg(debug_assertions)]
+        {
+            self.map_id = None;
+        }
     }
 
     /// Retains only the elements specified by the predicate.
@@ -257,11 +303,17 @@ impl<T> SecondaryMap<T> {
     /// 只保留满足谓词的元素。
     pub fn retain<F>(&mut self, mut f: F)
     where
-        F: FnMut(u64, &mut T) -> bool,
+        F: FnMut(crate::Key, &mut T) -> bool,
     {
         for (index, slot_opt) in self.slots.iter_mut().enumerate() {
             if let Some(slot) = slot_opt {
-                let key = encode_key(index as u32, slot.generation);
+                let key = crate::Key::new(
+                    index as u32,
+                    slot.generation,
+                    #[cfg(debug_assertions)]
+                    self.map_id.unwrap_or(0),
+                );
+
                 if !f(key, &mut slot.value) {
                     *slot_opt = None;
                     self.num_elems -= 1;
@@ -273,13 +325,18 @@ impl<T> SecondaryMap<T> {
     /// Iterator over all (key, value) pairs
     ///
     /// 遍历所有 (key, value) 对的迭代器
-    pub fn iter(&self) -> impl Iterator<Item = (u64, &T)> {
+    pub fn iter(&self) -> impl Iterator<Item = (crate::Key, &T)> {
         self.slots
             .iter()
             .enumerate()
-            .filter_map(|(index, slot_opt)| {
+            .filter_map(move |(index, slot_opt)| {
                 slot_opt.as_ref().map(|slot| {
-                    let key = encode_key(index as u32, slot.generation);
+                    let key = crate::Key::new(
+                        index as u32,
+                        slot.generation,
+                        #[cfg(debug_assertions)]
+                        self.map_id.unwrap_or(0),
+                    );
                     (key, &slot.value)
                 })
             })
@@ -288,13 +345,21 @@ impl<T> SecondaryMap<T> {
     /// Mutable iterator over all (key, value) pairs
     ///
     /// 遍历所有 (key, value) 对的可变迭代器
-    pub fn iter_mut(&mut self) -> impl Iterator<Item = (u64, &mut T)> {
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (crate::Key, &mut T)> {
+        #[cfg(debug_assertions)]
+        let map_id = self.map_id;
+
         self.slots
             .iter_mut()
             .enumerate()
-            .filter_map(|(index, slot_opt)| {
+            .filter_map(move |(index, slot_opt)| {
                 slot_opt.as_mut().map(|slot| {
-                    let key = encode_key(index as u32, slot.generation);
+                    let key = crate::Key::new(
+                        index as u32,
+                        slot.generation,
+                        #[cfg(debug_assertions)]
+                        map_id.unwrap_or(0),
+                    );
                     (key, &mut slot.value)
                 })
             })
