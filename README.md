@@ -163,6 +163,41 @@ map.release_handle(handle);
 // The slot is returned to the free list
 ```
 
+### Secondary Map
+
+`SecondaryMap` allows you to associate additional data with keys from a `DeferredMap` without modifying the original map or key structure.
+
+```rust
+use deferred_map::{DeferredMap, SecondaryMap};
+
+let mut map = DeferredMap::new();
+let mut sec = SecondaryMap::new();
+
+let h1 = map.allocate_handle();
+let k1 = h1.key();
+map.insert(h1, "Player 1");
+
+// Associate extra data
+sec.insert(k1, 100); // Health points
+
+assert_eq!(sec.get(k1), Some(&100));
+
+// If the key is removed from the main map and reused, SecondaryMap handles it safe
+map.remove(k1);
+// ... later ...
+let h2 = map.allocate_handle(); // Reuses slot
+let k2 = h2.key();
+map.insert(h2, "Player 2");
+
+// k1 is invalid in sec
+assert_eq!(sec.get(k1), None);
+// k2 is valid (but empty until inserted)
+assert_eq!(sec.get(k2), None);
+
+sec.insert(k2, 200);
+assert_eq!(sec.get(k2), Some(&200));
+```
+
 ## API Overview
 
 ### Core Types

@@ -1,10 +1,12 @@
 mod handle;
 mod map;
+mod secondary;
 mod slot;
 mod utils;
 
 pub use handle::Handle;
 pub use map::DeferredMap;
+pub use secondary::SecondaryMap;
 
 #[cfg(test)]
 mod tests {
@@ -16,4 +18,5 @@ mod tests {
     mod insertion;
     mod new_features;
     mod removal;
+    mod secondary_test;
 }

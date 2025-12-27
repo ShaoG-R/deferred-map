@@ -163,6 +163,41 @@ map.release_handle(handle);
 // 槽位被返回到空闲列表
 ```
 
+### 辅助映射 (Secondary Map)
+
+`SecondaryMap` 允许你将额外数据与 `DeferredMap` 的键相关联，而无需修改原始映射或键结构。
+
+```rust
+use deferred_map::{DeferredMap, SecondaryMap};
+
+let mut map = DeferredMap::new();
+let mut sec = SecondaryMap::new();
+
+let h1 = map.allocate_handle();
+let k1 = h1.key();
+map.insert(h1, "玩家 1");
+
+// 关联额外数据
+sec.insert(k1, 100); // 生命值
+
+assert_eq!(sec.get(k1), Some(&100));
+
+// 如果键从主映射中移除并被重用，SecondaryMap 会安全处理
+map.remove(k1);
+// ... 稍后 ...
+let h2 = map.allocate_handle(); // 重用槽位
+let k2 = h2.key();
+map.insert(h2, "玩家 2");
+
+// k1 在 sec 中无效
+assert_eq!(sec.get(k1), None);
+// k2 是有效的（但在插入前为空）
+assert_eq!(sec.get(k2), None);
+
+sec.insert(k2, 200);
+assert_eq!(sec.get(k2), Some(&200));
+```
+
 ## API 概览
 
 ### 核心类型

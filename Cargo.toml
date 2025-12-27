@@ -1,6 +1,6 @@
 [package]
 name = "deferred-map"
-version = "0.2.3"
+version = "0.2.4"
 edition = "2024"
 authors = ["ShaoG <shaog.rs@gmail.com>"]
 license = "MIT OR Apache-2.0"
@@ -15,9 +15,9 @@ exclude = [
     "target/*",
     ".git/*",
     ".github/*",
-    "benches/*",
     "*.md",
     "!README.md",
+    "!README_CN.md",
 ]
 
 [dependencies]
