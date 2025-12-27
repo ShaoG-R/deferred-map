@@ -10,6 +10,7 @@ pub use map::DeferredMap;
 mod tests {
     // Test modules for DeferredMap
     // DeferredMap 的测试模块
+    mod debug_safety;
     mod edge_cases;
     mod handle;
     mod insertion;

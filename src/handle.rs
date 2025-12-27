@@ -22,6 +22,8 @@
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Handle {
     key: u64, // The key of the handle
+    #[cfg(debug_assertions)]
+    pub(crate) map_id: u64,
 }
 
 impl Handle {
@@ -29,8 +31,12 @@ impl Handle {
     ///
     /// 创建一个新的 Handle（内部使用）
     #[inline(always)]
-    pub(crate) fn new(key: u64) -> Self {
-        Self { key }
+    pub(crate) fn new(key: u64, #[cfg(debug_assertions)] map_id: u64) -> Self {
+        Self {
+            key,
+            #[cfg(debug_assertions)]
+            map_id,
+        }
     }
 
     /// Get the key that will be used for this handle

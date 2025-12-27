@@ -258,6 +258,7 @@ union SlotUnion<T> {
 - **No Use-After-Free**: Generational indices ensure old keys are rejected
 - **No Double-Use**: Handles are consumed on use (move semantics)
 - **No Leaks**: Proper `Drop` implementation for occupied slots
+- **Debug Safety**: In debug mode, handles are verified to belong to the correct map instance
 - **Memory Safe**: All unsafe code is carefully encapsulated and documented
 
 ## Comparison with Other Crates

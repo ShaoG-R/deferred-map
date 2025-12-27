@@ -4,6 +4,11 @@ use crate::slot::SlotContentMut::OccupiedMut;
 use crate::slot::{Slot, SlotUnion};
 use crate::utils::{decode_key, encode_key, likely, unlikely};
 use std::mem::ManuallyDrop;
+#[cfg(debug_assertions)]
+use std::sync::atomic::{AtomicU64, Ordering};
+
+#[cfg(debug_assertions)]
+static NEXT_MAP_ID: AtomicU64 = AtomicU64::new(0);
 
 /// DeferredMap is a high-performance map based on slotmap
 ///
@@ -46,6 +51,8 @@ pub struct DeferredMap<T> {
     slots: Vec<Slot<T>>,
     free_head: u32, // Head of free list | 空闲列表的头部索引
     num_elems: u32, // Current element count | 当前元素数量
+    #[cfg(debug_assertions)]
+    map_id: u64,
 }
 
 impl<T> DeferredMap<T> {
@@ -100,6 +107,8 @@ impl<T> DeferredMap<T> {
             slots,
             free_head: 1, // Start allocation from index 1 | 从索引 1 开始分配
             num_elems: 0,
+            #[cfg(debug_assertions)]
+            map_id: NEXT_MAP_ID.fetch_add(1, Ordering::Relaxed),
         }
     }
 
@@ -147,7 +156,11 @@ impl<T> DeferredMap<T> {
             slot.version += 1;
 
             let raw = encode_key(index, slot.generation());
-            Handle::new(raw)
+            Handle::new(
+                raw,
+                #[cfg(debug_assertions)]
+                self.map_id,
+            )
         } else {
             // Need to extend Vec, allocate new slot
             // 需要扩展 Vec，分配新 slot
@@ -168,7 +181,11 @@ impl<T> DeferredMap<T> {
             // Extract generation from version (reserved state: 0b01)
             // 从 version 提取 generation（reserved 状态：0b01）
             let raw = encode_key(index, version >> 2);
-            Handle::new(raw)
+            Handle::new(
+                raw,
+                #[cfg(debug_assertions)]
+                self.map_id,
+            )
         }
     }
 
@@ -202,6 +219,12 @@ impl<T> DeferredMap<T> {
     /// assert_eq!(map.get(key), Some(&42));
     /// ```
     pub fn insert(&mut self, handle: Handle, value: T) {
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(
+            self.map_id, handle.map_id,
+            "Handle used with wrong map instance"
+        );
+
         let index = handle.index();
 
         // Validate index (skip sentinel)
@@ -444,6 +467,12 @@ impl<T> DeferredMap<T> {
     /// map.release_handle(handle);
     /// ```
     pub fn release_handle(&mut self, handle: Handle) {
+        #[cfg(debug_assertions)]
+        debug_assert_eq!(
+            self.map_id, handle.map_id,
+            "Handle used with wrong map instance"
+        );
+
         let index = handle.index();
         let handle_generation = handle.generation();
 
@@ -687,6 +716,8 @@ impl<T: Clone> Clone for DeferredMap<T> {
             slots: self.slots.clone(),
             free_head: self.free_head,
             num_elems: self.num_elems,
+            #[cfg(debug_assertions)]
+            map_id: NEXT_MAP_ID.fetch_add(1, Ordering::Relaxed),
         }
     }
 
@@ -695,6 +726,10 @@ impl<T: Clone> Clone for DeferredMap<T> {
         self.slots.clone_from(&source.slots);
         self.free_head = source.free_head;
         self.num_elems = source.num_elems;
+        #[cfg(debug_assertions)]
+        {
+            self.map_id = NEXT_MAP_ID.fetch_add(1, Ordering::Relaxed);
+        }
     }
 }
 
